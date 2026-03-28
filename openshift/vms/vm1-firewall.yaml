@@ -1,0 +1,93 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm1-firewall
+  namespace: projet-3tiers
+  labels:
+    role: firewall
+    app: projet-3tiers
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: vm1-firewall
+      annotations:
+        # Attacher les deux réseaux (LAN + DMZ) via Multus
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "reseau-lan",
+              "namespace": "projet-3tiers",
+              "interface": "eth1",
+              "ips": ["192.168.10.1/24"]
+            },
+            {
+              "name": "reseau-dmz",
+              "namespace": "projet-3tiers",
+              "interface": "eth2",
+              "ips": ["192.168.100.1/24"]
+            }
+          ]
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        memory:
+          guest: 2Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            # Interface principale (NAT / accès Internet via OpenShift)
+            - name: default
+              masquerade: {}
+            # Interface LAN
+            - name: lan
+              bridge: {}
+            # Interface DMZ
+            - name: dmz
+              bridge: {}
+      networks:
+        - name: default
+          pod: {}
+        - name: lan
+          multus:
+            networkName: reseau-lan
+        - name: dmz
+          multus:
+            networkName: reseau-dmz
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: vm1-firewall
+              users:
+                - name: admin
+                  sudo: ALL=(ALL) NOPASSWD:ALL
+                  shell: /bin/bash
+                  ssh_import_id:
+                    - gh:ADONIS-IX
+              package_update: true
+              packages:
+                - iptables
+                - iptables-persistent
+                - net-tools
+                - curl
+              runcmd:
+                # Activer le routage IP
+                - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+                - sysctl -p
+                # Copier et exécuter le script iptables
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/iptables-setup.sh "$REPO_RAW_BASE/scripts/vm1-iptables.sh"'
+                - chmod +x /root/iptables-setup.sh
+                - /root/iptables-setup.sh

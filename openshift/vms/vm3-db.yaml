@@ -1,0 +1,95 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm3-db
+  namespace: projet-3tiers
+  labels:
+    role: database
+    app: projet-3tiers
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: vm3-db
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "reseau-lan",
+              "namespace": "projet-3tiers",
+              "interface": "eth1",
+              "ips": ["192.168.10.10/24"],
+              "gateway": "192.168.10.1"
+            }
+          ]
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        memory:
+          guest: 4Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: datadisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+            - name: lan
+              bridge: {}
+      networks:
+        - name: default
+          pod: {}
+        - name: lan
+          multus:
+            networkName: reseau-lan
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        # Disque persistant dédié aux données MySQL
+        - name: datadisk
+          persistentVolumeClaim:
+            claimName: pvc-mysql-data
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: vm3-db
+              users:
+                - name: admin
+                  sudo: ALL=(ALL) NOPASSWD:ALL
+                  shell: /bin/bash
+                  ssh_import_id:
+                    - gh:ADONIS-IX
+              package_update: true
+              packages:
+                - mysql-server
+                - curl
+              runcmd:
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm3-mysql.sh "$REPO_RAW_BASE/scripts/vm3-mysql.sh"'
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/stack.env "$REPO_RAW_BASE/config/stack.env"'
+                - chmod +x /root/vm3-mysql.sh
+                - /root/vm3-mysql.sh
+---
+# Volume persistant pour les données MySQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-mysql-data
+  namespace: projet-3tiers
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: ocs-storagecluster-ceph-rbd

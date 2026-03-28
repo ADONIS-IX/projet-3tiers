@@ -1,0 +1,18 @@
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: reseau-lan
+  namespace: projet-3tiers
+  annotations:
+    description: "Réseau LAN interne — Serveur Base de Données (192.168.10.0/24)"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "name": "reseau-lan",
+      "type": "bridge",
+      "bridge": "br-lan",
+      "ipam": {
+        "type": "static"
+      }
+    }

@@ -1,0 +1,79 @@
+name: CI — Validation Architecture 3-tiers
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-yaml:
+    name: Validation YAML OpenShift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer yamllint
+        run: pip install yamllint
+
+      - name: Vérifier les fichiers YAML
+        run: yamllint openshift/
+
+  lint-scripts:
+    name: Validation Scripts Shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Vérifier les scripts bash
+        run: shellcheck scripts/*.sh
+
+  test-node:
+    name: Tests Application Node.js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package.json
+
+      - name: Installer les dépendances
+        working-directory: app
+        run: npm ci
+
+      - name: Vérifier la syntaxe
+        working-directory: app
+        run: node --check server.js
+
+  security-check:
+    name: Audit de sécurité
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Audit npm
+        working-directory: app
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Vérifier les secrets hardcodés
+        run: |
+          if grep -rE "(password|passwd|secret|token)\s*=\s*['\"][^'\"]{6,}" \
+            --include="*.js" --include="*.yaml" --include="*.yml" \
+            --exclude-dir=".git" .; then
+            echo "ATTENTION: Secrets potentiels détectés dans le code source!"
+            exit 1
+          fi
+        continue-on-error: true

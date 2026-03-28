@@ -1,0 +1,77 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm2-web
+  namespace: projet-3tiers
+  labels:
+    role: web
+    app: projet-3tiers
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: vm2-web
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "reseau-dmz",
+              "namespace": "projet-3tiers",
+              "interface": "eth1",
+              "ips": ["192.168.100.10/24"],
+              "gateway": "192.168.100.1"
+            }
+          ]
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        memory:
+          guest: 4Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+            - name: dmz
+              bridge: {}
+      networks:
+        - name: default
+          pod: {}
+        - name: dmz
+          multus:
+            networkName: reseau-dmz
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: vm2-web
+              users:
+                - name: admin
+                  sudo: ALL=(ALL) NOPASSWD:ALL
+                  shell: /bin/bash
+                  ssh_import_id:
+                    - gh:ADONIS-IX
+              package_update: true
+              packages:
+                - nginx
+                - nodejs
+                - npm
+                - curl
+                - git
+              runcmd:
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm2-setup.sh "$REPO_RAW_BASE/scripts/vm2-setup.sh"'
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/stack.env "$REPO_RAW_BASE/config/stack.env"'
+                - chmod +x /root/vm2-setup.sh
+                - /root/vm2-setup.sh

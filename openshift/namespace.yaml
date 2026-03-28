@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: projet-3tiers
+  labels:
+    app: projet-3tiers
+    environment: tp

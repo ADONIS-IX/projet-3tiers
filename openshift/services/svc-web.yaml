@@ -1,0 +1,40 @@
+---
+# Service interne pour exposer VM2 (Nginx) au routeur OpenShift
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-web
+  namespace: projet-3tiers
+  labels:
+    app: projet-3tiers
+    role: web
+spec:
+  type: ClusterIP
+  selector:
+    kubevirt.io/vm: vm2-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443
+---
+# Route OpenShift (équivalent Ingress) pour exposer VM2 via le routeur HAProxy
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: route-web
+  namespace: projet-3tiers
+  labels:
+    app: projet-3tiers
+    role: web
+spec:
+  to:
+    kind: Service
+    name: svc-web
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
