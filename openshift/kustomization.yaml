@@ -6,6 +6,7 @@ namespace: projet-3tiers
 # Ordre de déploiement : namespace → réseaux → stockage → VMs
 resources:
   - namespace.yaml
+  - secrets/db-credentials.yaml
   - network/nad-lan.yaml
   - network/nad-dmz.yaml
   - vms/vm3-db.yaml       # VM3 en premier (stockage persistant)

@@ -76,9 +76,7 @@ spec:
                 - curl
               runcmd:
                 - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm3-mysql.sh "$REPO_RAW_BASE/scripts/vm3-mysql.sh"'
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/stack.env "$REPO_RAW_BASE/config/stack.env"'
                 - chmod +x /root/vm3-mysql.sh
-                - /root/vm3-mysql.sh
 ---
 # Volume persistant pour les données MySQL
 apiVersion: v1

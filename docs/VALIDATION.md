@@ -75,7 +75,7 @@ virtctl ssh admin@vm3-db -n projet-3tiers -- ss -tlnp | grep 3306
 
 # Tester une requête directe
 virtctl ssh admin@vm3-db -n projet-3tiers -- \
-  mysql -u webuser -p'WebPass@2024!' appdb -e "SELECT * FROM utilisateurs;"
+  'set -a; source /root/db-secrets.env; set +a; mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT * FROM utilisateurs;"'
 ```
 
 ### VM1 — iptables
@@ -193,7 +193,7 @@ virtctl ssh admin@vm1-firewall -n projet-3tiers -- bash /root/validate.sh
 ## Dépannage fréquent
 
 | Symptôme | Commande de diagnostic | Solution probable |
-|----------|----------------------|-------------------|
+| --- | --- | --- |
 | VM bloquée en Pending | `oc describe vmi vm1-firewall -n projet-3tiers` | Vérifier les ressources nœud disponibles |
 | Réseau LAN/DMZ absent | `oc get nad -n projet-3tiers` | Réappliquer les NAD, vérifier Multus |
 | Nginx ne démarre pas | `journalctl -u nginx -n 50` sur VM2 | Vérifier la config avec `nginx -t` |

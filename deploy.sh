@@ -26,6 +26,58 @@ ok()   { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+get_secret_value() {
+  local key="$1"
+  oc get secret db-credentials -n "$NAMESPACE" -o "jsonpath={.data.${key}}" | base64 -d
+}
+
+configure_vm_services() {
+  log "Injection des secrets OpenShift dans VM2 et VM3..."
+
+  local db_host db_port db_name db_user db_pass db_root_pass db_monitor_pass db_allowed_host mysql_bind_address
+  db_host="$(get_secret_value DB_HOST)"
+  db_port="$(get_secret_value DB_PORT)"
+  db_name="$(get_secret_value DB_NAME)"
+  db_user="$(get_secret_value DB_USER)"
+  db_pass="$(get_secret_value DB_PASS)"
+  db_root_pass="$(get_secret_value DB_ROOT_PASS)"
+  db_monitor_pass="$(get_secret_value DB_MONITOR_PASS)"
+  db_allowed_host="$(get_secret_value DB_ALLOWED_HOST)"
+  mysql_bind_address="$(get_secret_value MYSQL_BIND_ADDRESS)"
+
+  local vm2_env vm3_env
+  vm2_env=$(cat <<EOF
+DB_HOST=$db_host
+DB_PORT=$db_port
+DB_NAME=$db_name
+DB_USER=$db_user
+DB_PASS=$db_pass
+EOF
+)
+
+  vm3_env=$(cat <<EOF
+DB_HOST=$db_host
+DB_PORT=$db_port
+DB_NAME=$db_name
+DB_USER=$db_user
+DB_PASS=$db_pass
+DB_ROOT_PASS=$db_root_pass
+DB_MONITOR_PASS=$db_monitor_pass
+DB_ALLOWED_HOST=$db_allowed_host
+MYSQL_BIND_ADDRESS=$mysql_bind_address
+EOF
+)
+
+  printf '%s\n' "$vm2_env" | virtctl ssh admin@vm2-web -n "$NAMESPACE" -- "cat > /root/db-secrets.env && chmod 600 /root/db-secrets.env"
+  printf '%s\n' "$vm3_env" | virtctl ssh admin@vm3-db -n "$NAMESPACE" -- "cat > /root/db-secrets.env && chmod 600 /root/db-secrets.env"
+
+  log "Exécution des scripts applicatifs sur VM2 et VM3..."
+  virtctl ssh admin@vm2-web -n "$NAMESPACE" -- "TP3_SECRET_ENV_PATH=/root/db-secrets.env bash /root/vm2-setup.sh"
+  virtctl ssh admin@vm3-db -n "$NAMESPACE" -- "TP3_SECRET_ENV_PATH=/root/db-secrets.env bash /root/vm3-mysql.sh"
+
+  ok "Services VM2 (Nginx+Node.js) et VM3 (MySQL) configurés"
+}
+
 # ── Vérifications préalables ─────────────────────────────────────────────────
 check_prerequisites() {
   log "Vérification des prérequis..."
@@ -93,19 +145,24 @@ deploy() {
   check_prerequisites
 
   # Étape 1 — Namespace
-  log "Étape 1/6 — Création du namespace..."
+  log "Étape 1/7 — Création du namespace..."
   oc apply -f "$SCRIPT_DIR/openshift/namespace.yaml"
   ok "Namespace $NAMESPACE prêt"
 
-  # Étape 2 — Réseaux
-  log "Étape 2/6 — Création des segments réseau (LAN + DMZ)..."
+  # Étape 2 — Secret OpenShift
+  log "Étape 2/7 — Création du Secret OpenShift (db-credentials)..."
+  oc apply -f "$SCRIPT_DIR/openshift/secrets/db-credentials.yaml"
+  ok "Secret db-credentials prêt"
+
+  # Étape 3 — Réseaux
+  log "Étape 3/7 — Création des segments réseau (LAN + DMZ)..."
   oc apply -f "$SCRIPT_DIR/openshift/network/nad-lan.yaml"
   oc apply -f "$SCRIPT_DIR/openshift/network/nad-dmz.yaml"
   oc get network-attachment-definitions -n "$NAMESPACE"
   ok "Réseaux LAN (192.168.10.0/24) et DMZ (192.168.100.0/24) créés"
 
-  # Étape 3 — Stockage persistant pour VM3
-  log "Étape 3/6 — Création du volume persistant MySQL..."
+  # Étape 4 — Stockage persistant pour VM3
+  log "Étape 4/7 — Création du volume persistant MySQL..."
   oc apply -f "$SCRIPT_DIR/openshift/vms/vm3-db.yaml"
   # Attendre que le PVC soit lié
   local pvc_timeout=60; local pvc_elapsed=0
@@ -117,8 +174,8 @@ deploy() {
   done
   ok "PVC MySQL lié"
 
-  # Étape 4 — Déploiement des VMs
-  log "Étape 4/6 — Déploiement des 3 VMs..."
+  # Étape 5 — Déploiement des VMs
+  log "Étape 5/7 — Déploiement des 3 VMs..."
   oc apply -f "$SCRIPT_DIR/openshift/vms/vm1-firewall.yaml"
   oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"
 
@@ -127,15 +184,19 @@ deploy() {
   wait_for_vm "vm2-web"
   wait_for_vm "vm3-db"
 
-  # Étape 5 — Service et Route
-  log "Étape 5/6 — Exposition du service Web..."
+  # Étape 6 — Configuration applicative via Secret OpenShift
+  log "Étape 6/7 — Configuration des services Web et DB..."
+  configure_vm_services
+
+  # Étape 7 — Service et Route
+  log "Étape 7/7 — Exposition du service Web..."
   oc apply -f "$SCRIPT_DIR/openshift/services/svc-web.yaml"
   local route_url
   route_url=$(oc get route route-web -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "N/A")
   ok "Route Web : https://$route_url"
 
-  # Étape 6 — Récapitulatif
-  log "Étape 6/6 — Vérification finale..."
+  # Vérification finale
+  log "Vérification finale..."
   status
 
   echo ""
@@ -175,6 +236,9 @@ destroy() {
 
   log "Suppression des services..."
   oc delete svc,route --all -n "$NAMESPACE" --ignore-not-found=true
+
+  log "Suppression du secret db-credentials..."
+  oc delete secret db-credentials -n "$NAMESPACE" --ignore-not-found=true
 
   log "Suppression du PVC MySQL..."
   oc delete pvc pvc-mysql-data -n "$NAMESPACE" --ignore-not-found=true

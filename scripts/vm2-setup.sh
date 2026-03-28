@@ -8,26 +8,26 @@ set -euo pipefail
 
 APP_DIR="/var/www/nodeapp"
 APP_USER="nodeapp"
-STACK_ENV_PATH="${TP3_STACK_ENV_PATH:-/root/stack.env}"
+SECRET_ENV_PATH="${TP3_SECRET_ENV_PATH:-/root/db-secrets.env}"
 REPO_URL="${TP3_REPO_URL:-https://github.com/ADONIS-IX/projet-3tiers.git}"
 REPO_REF="${TP3_REPO_REF:-main}"
 
-if [[ ! -f "$STACK_ENV_PATH" ]]; then
-  echo "[ERREUR] Fichier de configuration manquant: $STACK_ENV_PATH"
-  echo "[ERREUR] Ajoutez config/stack.env dans le repo GitHub avant le provisioning."
+if [[ ! -f "$SECRET_ENV_PATH" ]]; then
+  echo "[ERREUR] Fichier de secrets manquant: $SECRET_ENV_PATH"
+  echo "[ERREUR] Injectez les secrets depuis OpenShift (secret db-credentials)."
   exit 1
 fi
 
 set -a
-source "$STACK_ENV_PATH"
+source "$SECRET_ENV_PATH"
 set +a
 
 DB_HOST="${DB_HOST:-192.168.10.10}"
 DB_PORT="${DB_PORT:-3306}"
 
-: "${DB_NAME:?DB_NAME doit etre defini dans $STACK_ENV_PATH}"
-: "${DB_USER:?DB_USER doit etre defini dans $STACK_ENV_PATH}"
-: "${DB_PASS:?DB_PASS doit etre defini dans $STACK_ENV_PATH}"
+: "${DB_NAME:?DB_NAME doit etre defini dans $SECRET_ENV_PATH}"
+: "${DB_USER:?DB_USER doit etre defini dans $SECRET_ENV_PATH}"
+: "${DB_PASS:?DB_PASS doit etre defini dans $SECRET_ENV_PATH}"
 
 echo "[*] Mise à jour du système..."
 apt-get update -y && apt-get upgrade -y

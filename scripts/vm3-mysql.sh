@@ -7,12 +7,26 @@
 
 set -euo pipefail
 
-DB_ROOT_PASS="RootSecure@2024!"
-DB_NAME="appdb"
-DB_USER="webuser"
-DB_PASS="WebPass@2024!"
-# Seule VM2 (serveur web) peut se connecter à MySQL
-ALLOWED_HOST="192.168.100.10"
+SECRET_ENV_PATH="${TP3_SECRET_ENV_PATH:-/root/db-secrets.env}"
+
+if [[ ! -f "$SECRET_ENV_PATH" ]]; then
+  echo "[ERREUR] Fichier de secrets manquant: $SECRET_ENV_PATH"
+  echo "[ERREUR] Injectez les secrets depuis OpenShift (secret db-credentials)."
+  exit 1
+fi
+
+set -a
+source "$SECRET_ENV_PATH"
+set +a
+
+DB_NAME="${DB_NAME:-appdb}"
+DB_USER="${DB_USER:-webuser}"
+ALLOWED_HOST="${DB_ALLOWED_HOST:-192.168.100.10}"
+MYSQL_BIND_ADDRESS="${MYSQL_BIND_ADDRESS:-192.168.10.10}"
+
+: "${DB_ROOT_PASS:?DB_ROOT_PASS doit etre defini dans $SECRET_ENV_PATH}"
+: "${DB_PASS:?DB_PASS doit etre defini dans $SECRET_ENV_PATH}"
+: "${DB_MONITOR_PASS:?DB_MONITOR_PASS doit etre defini dans $SECRET_ENV_PATH}"
 
 echo "[*] Mise à jour du système..."
 apt-get update -y && apt-get upgrade -y
@@ -58,7 +72,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ${DB_NAME}.* TO '${DB_USER}'@'${ALLOWED_
 
 -- Utilisateur de monitoring (lecture seule depuis localhost)
 CREATE USER IF NOT EXISTS 'monitor'@'localhost'
-  IDENTIFIED WITH mysql_native_password BY 'MonitorPass@2024!';
+  IDENTIFIED WITH mysql_native_password BY '${DB_MONITOR_PASS}';
 GRANT SELECT ON ${DB_NAME}.* TO 'monitor'@'localhost';
 
 FLUSH PRIVILEGES;
@@ -102,7 +116,7 @@ echo "[*] Configuration de MySQL pour écouter sur le réseau LAN..."
 cat > /etc/mysql/mysql.conf.d/99-tp-3tiers.cnf << 'MYSQLCONF'
 [mysqld]
 # Écouter sur l'interface LAN uniquement (pas sur toutes les interfaces)
-bind-address            = 192.168.10.10
+bind-address            = __MYSQL_BIND_ADDRESS__
 
 # Performance
 innodb_buffer_pool_size = 512M
@@ -124,6 +138,8 @@ character_set_server    = utf8mb4
 collation_server        = utf8mb4_unicode_ci
 MYSQLCONF
 
+sed -i "s/__MYSQL_BIND_ADDRESS__/${MYSQL_BIND_ADDRESS}/g" /etc/mysql/mysql.conf.d/99-tp-3tiers.cnf
+
 systemctl restart mysql
 
 # =============================================================================
@@ -138,6 +154,6 @@ echo ""
 echo "========================================================"
 echo " VM3 — MySQL configuré avec succès !"
 echo " BD     : ${DB_NAME}"
-echo " Écoute : 192.168.10.10:3306"
+echo " Écoute : ${MYSQL_BIND_ADDRESS}:3306"
 echo " User   : ${DB_USER}@${ALLOWED_HOST}"
 echo "========================================================"

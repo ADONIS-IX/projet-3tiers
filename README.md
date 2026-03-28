@@ -4,7 +4,7 @@
 
 Ce projet déploie une architecture réseau **3-tiers virtualisée** sur **OpenShift Virtualization (KubeVirt)** avec isolation réseau complète via iptables.
 
-```
+```text
 Internet (NAT)
       │
    [VM1 — Firewall/Passerelle]   eth0=WAN | eth1=LAN | eth2=DMZ
@@ -18,7 +18,7 @@ Internet (NAT)
 
 ## Structure du dépôt
 
-```
+```text
 projet-3tiers/
 ├── .github/workflows/ci.yml      # Pipeline CI/CD GitHub Actions
 ├── openshift/
@@ -73,6 +73,12 @@ oc apply -f openshift/network/nad-dmz.yaml
 oc get network-attachment-definitions -n projet-3tiers
 ```
 
+### Étape 2b — Créer le Secret OpenShift pour la base
+
+```bash
+oc apply -f openshift/secrets/db-credentials.yaml
+```
+
 ### Étape 3 — Déployer les VMs
 
 ```bash
@@ -100,6 +106,9 @@ virtctl ssh admin@vm3-db       -n projet-3tiers
 ### Étape 5 — Configurer les services (si cloud-init n'est pas utilisé)
 
 ```bash
+# Injecter les secrets puis configurer VM2 et VM3
+./deploy.sh
+
 # Sur VM1 : Configurer iptables
 virtctl ssh admin@vm1-firewall -n projet-3tiers -- 'bash /root/iptables-setup.sh'
 
@@ -120,7 +129,7 @@ virtctl ssh admin@vm1-firewall -n projet-3tiers -- 'bash /root/validate.sh'
 ## Règles iptables — Politique de sécurité
 
 | # | Source | Destination | Port | Action | Justification |
-|---|--------|-------------|------|--------|---------------|
+| --- | --- | --- | --- | --- | --- |
 | R1 | Internet (WAN) | LAN (VM3 BD) | Tous | **DROP** | BD non exposée à Internet |
 | R2 | DMZ (VM2 Web) | LAN (VM3 BD) | 3306 | **ACCEPT** | Seul flux applicatif Web -> BD |
 | R2b | DMZ (VM2 Web) | LAN (VM3 BD) | Autres | **DROP** | Isolation stricte Web/BD |
@@ -154,7 +163,7 @@ curl http://192.168.100.10  # doit réussir
 
 ```bash
 git init
-git remote add origin https://github.com/VOTRE_USER/projet-3tiers.git
+git remote add origin https://github.com/ADONIS-IX/projet-3tiers.git
 git add .
 git commit -m "feat: architecture 3-tiers initiale"
 git push -u origin main
@@ -162,7 +171,7 @@ git push -u origin main
 
 ### Conventions de commit
 
-```
+```text
 feat:  nouvelle fonctionnalité
 fix:   correction de bug
 docs:  documentation
@@ -171,7 +180,7 @@ chore: maintenance
 
 ## Partie 4 — Structure recommandée des branches GitHub
 
-```
+```text
 main          ← production stable
 ├── develop   ← intégration
 │   ├── feature/vm1-iptables
@@ -180,4 +189,7 @@ main          ← production stable
 ```
 
 ---
-*Projet réalisé dans le cadre du TP Architecture Réseau Virtualisée*
+
+## Note
+
+Projet réalisé dans le cadre du TP Architecture Réseau Virtualisée.

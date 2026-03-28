@@ -72,6 +72,4 @@ spec:
                 - git
               runcmd:
                 - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm2-setup.sh "$REPO_RAW_BASE/scripts/vm2-setup.sh"'
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/stack.env "$REPO_RAW_BASE/config/stack.env"'
                 - chmod +x /root/vm2-setup.sh
-                - /root/vm2-setup.sh
