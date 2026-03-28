@@ -2,12 +2,12 @@ apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
   name: vm2-web
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   labels:
     role: web
-    app: projet-3tiers
+    app: ad-gomis-dev
 spec:
-  running: true
+  runStrategy: Manual
   template:
     metadata:
       labels:
@@ -17,7 +17,7 @@ spec:
           [
             {
               "name": "reseau-dmz",
-              "namespace": "projet-3tiers",
+              "namespace": "ad-gomis-dev",
               "interface": "eth1",
               "ips": ["192.168.100.10/24"],
               "gateway": "192.168.100.1"
@@ -57,6 +57,7 @@ spec:
             userData: |
               #cloud-config
               hostname: vm2-web
+              user: admin
               users:
                 - name: admin
                   sudo: ALL=(ALL) NOPASSWD:ALL
@@ -71,5 +72,5 @@ spec:
                 - curl
                 - git
               runcmd:
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm2-setup.sh "$REPO_RAW_BASE/scripts/vm2-setup.sh"'
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/vm2-setup.sh "$REPO_RAW_BASE/scripts/vm2-setup.sh"'
                 - chmod +x /root/vm2-setup.sh

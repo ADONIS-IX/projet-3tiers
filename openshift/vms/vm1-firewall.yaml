@@ -2,12 +2,12 @@ apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
   name: vm1-firewall
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   labels:
     role: firewall
-    app: projet-3tiers
+    app: ad-gomis-dev
 spec:
-  running: true
+  runStrategy: Manual
   template:
     metadata:
       labels:
@@ -18,13 +18,13 @@ spec:
           [
             {
               "name": "reseau-lan",
-              "namespace": "projet-3tiers",
+              "namespace": "ad-gomis-dev",
               "interface": "eth1",
               "ips": ["192.168.10.1/24"]
             },
             {
               "name": "reseau-dmz",
-              "namespace": "projet-3tiers",
+              "namespace": "ad-gomis-dev",
               "interface": "eth2",
               "ips": ["192.168.100.1/24"]
             }
@@ -71,6 +71,7 @@ spec:
             userData: |
               #cloud-config
               hostname: vm1-firewall
+              user: admin
               users:
                 - name: admin
                   sudo: ALL=(ALL) NOPASSWD:ALL
@@ -88,6 +89,6 @@ spec:
                 - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
                 - sysctl -p
                 # Copier et exécuter le script iptables
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/iptables-setup.sh "$REPO_RAW_BASE/scripts/vm1-iptables.sh"'
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/iptables-setup.sh "$REPO_RAW_BASE/scripts/vm1-iptables.sh"'
                 - chmod +x /root/iptables-setup.sh
                 - /root/iptables-setup.sh

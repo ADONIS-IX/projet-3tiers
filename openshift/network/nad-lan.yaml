@@ -2,7 +2,7 @@ apiVersion: k8s.cni.cncf.io/v1
 kind: NetworkAttachmentDefinition
 metadata:
   name: reseau-lan
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   annotations:
     description: "Réseau LAN interne — Serveur Base de Données (192.168.10.0/24)"
 spec:

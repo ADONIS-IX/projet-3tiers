@@ -2,12 +2,12 @@ apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
   name: vm3-db
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   labels:
     role: database
-    app: projet-3tiers
+    app: ad-gomis-dev
 spec:
-  running: true
+  runStrategy: Manual
   template:
     metadata:
       labels:
@@ -17,7 +17,7 @@ spec:
           [
             {
               "name": "reseau-lan",
-              "namespace": "projet-3tiers",
+              "namespace": "ad-gomis-dev",
               "interface": "eth1",
               "ips": ["192.168.10.10/24"],
               "gateway": "192.168.10.1"
@@ -64,6 +64,7 @@ spec:
             userData: |
               #cloud-config
               hostname: vm3-db
+              user: admin
               users:
                 - name: admin
                   sudo: ALL=(ALL) NOPASSWD:ALL
@@ -75,7 +76,7 @@ spec:
                 - mysql-server
                 - curl
               runcmd:
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/projet-3tiers/main}"; curl -fsSL -o /root/vm3-mysql.sh "$REPO_RAW_BASE/scripts/vm3-mysql.sh"'
+                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/vm3-mysql.sh "$REPO_RAW_BASE/scripts/vm3-mysql.sh"'
                 - chmod +x /root/vm3-mysql.sh
 ---
 # Volume persistant pour les données MySQL
@@ -83,11 +84,11 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: pvc-mysql-data
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 20Gi
-  storageClassName: ocs-storagecluster-ceph-rbd
+  storageClassName: gp3

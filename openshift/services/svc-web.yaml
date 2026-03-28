@@ -4,9 +4,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: svc-web
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   labels:
-    app: projet-3tiers
+    app: ad-gomis-dev
     role: web
 spec:
   type: ClusterIP
@@ -25,9 +25,9 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: route-web
-  namespace: projet-3tiers
+  namespace: ad-gomis-dev
   labels:
-    app: projet-3tiers
+    app: ad-gomis-dev
     role: web
 spec:
   to:
