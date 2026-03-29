@@ -12,7 +12,9 @@ resources:
   - vms/vm2-web.yaml
   - services/svc-web.yaml
 
-commonLabels:
-  app: ad-gomis-dev
-  env: tp
-  managed-by: kustomize
+labels:
+  - includeSelectors: true
+    pairs:
+      app: ad-gomis-dev
+      env: tp
+      managed-by: kustomize

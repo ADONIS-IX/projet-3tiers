@@ -51,6 +51,27 @@ Capture essentielle:
 oc apply -k openshift
 ```
 
+Si vous obtenez un timeout (API:6443), executer ce diagnostic rapide:
+
+```bash
+oc whoami --show-server
+getent hosts api.rm2.thpm.p1.openshiftapps.com
+curl -k --connect-timeout 8 -I https://api.rm2.thpm.p1.openshiftapps.com:6443/readyz
+```
+
+Interpretation:
+
+- DNS OK + curl timeout: connectivite reseau/VPN vers le cluster indisponible
+- DNS KO: probleme de resolution locale
+
+Relance recommandee une fois la connectivite retablie:
+
+```bash
+oc login --server=https://api.rm2.thpm.p1.openshiftapps.com:6443
+oc project ad-gomis-dev
+oc apply -k openshift
+```
+
 Resultat attendu:
 
 - secret configure/created
