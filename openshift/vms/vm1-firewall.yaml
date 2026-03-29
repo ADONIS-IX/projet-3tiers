@@ -12,23 +12,6 @@ spec:
     metadata:
       labels:
         kubevirt.io/vm: vm1-firewall
-      annotations:
-        # Attacher les deux réseaux (LAN + DMZ) via Multus
-        k8s.v1.cni.cncf.io/networks: |
-          [
-            {
-              "name": "reseau-lan",
-              "namespace": "ad-gomis-dev",
-              "interface": "eth1",
-              "ips": ["192.168.10.1/24"]
-            },
-            {
-              "name": "reseau-dmz",
-              "namespace": "ad-gomis-dev",
-              "interface": "eth2",
-              "ips": ["192.168.100.1/24"]
-            }
-          ]
     spec:
       domain:
         cpu:
@@ -44,24 +27,11 @@ spec:
               disk:
                 bus: virtio
           interfaces:
-            # Interface principale (NAT / accès Internet via OpenShift)
             - name: default
               masquerade: {}
-            # Interface LAN
-            - name: lan
-              bridge: {}
-            # Interface DMZ
-            - name: dmz
-              bridge: {}
       networks:
         - name: default
           pod: {}
-        - name: lan
-          multus:
-            networkName: reseau-lan
-        - name: dmz
-          multus:
-            networkName: reseau-dmz
       volumes:
         - name: rootdisk
           containerDisk:
@@ -91,4 +61,4 @@ spec:
                 # Copier et exécuter le script iptables
                 - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/iptables-setup.sh "$REPO_RAW_BASE/scripts/vm1-iptables.sh"'
                 - chmod +x /root/iptables-setup.sh
-                - /root/iptables-setup.sh
+                - /root/iptables-setup.sh || true

@@ -12,17 +12,6 @@ spec:
     metadata:
       labels:
         kubevirt.io/vm: vm2-web
-      annotations:
-        k8s.v1.cni.cncf.io/networks: |
-          [
-            {
-              "name": "reseau-dmz",
-              "namespace": "ad-gomis-dev",
-              "interface": "eth1",
-              "ips": ["192.168.100.10/24"],
-              "gateway": "192.168.100.1"
-            }
-          ]
     spec:
       domain:
         cpu:
@@ -40,14 +29,9 @@ spec:
           interfaces:
             - name: default
               masquerade: {}
-            - name: dmz
-              bridge: {}
       networks:
         - name: default
           pod: {}
-        - name: dmz
-          multus:
-            networkName: reseau-dmz
       volumes:
         - name: rootdisk
           containerDisk:

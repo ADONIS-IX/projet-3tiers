@@ -75,14 +75,14 @@ oc apply -f openshift/secrets/db-credentials.yaml
 
 # Ou en ligne de commande (toutes les cles necessaires) :
 oc create secret generic db-credentials \
-  --from-literal=DB_HOST=192.168.10.10 \
+  --from-literal=DB_HOST=mysql-db.ad-gomis-dev.svc.cluster.local \
   --from-literal=DB_PORT=3306 \
   --from-literal=DB_NAME=appdb \
   --from-literal=DB_USER=webuser \
   --from-literal=DB_PASS='<mot_de_passe_fort>' \
   --from-literal=DB_ROOT_PASS='<mot_de_passe_root_fort>' \
   --from-literal=DB_MONITOR_PASS='<mot_de_passe_monitor_fort>' \
-  --from-literal=DB_ALLOWED_HOST=192.168.100.10 \
-  --from-literal=MYSQL_BIND_ADDRESS=192.168.10.10 \
-  -n projet-3tiers
+  --from-literal=DB_ALLOWED_HOST=% \
+  --from-literal=MYSQL_BIND_ADDRESS=0.0.0.0 \
+  -n ad-gomis-dev
 ```

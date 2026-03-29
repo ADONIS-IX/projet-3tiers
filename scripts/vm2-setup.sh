@@ -22,7 +22,7 @@ set -a
 source "$SECRET_ENV_PATH"
 set +a
 
-DB_HOST="${DB_HOST:-192.168.10.10}"
+DB_HOST="${DB_HOST:-mysql-db.ad-gomis-dev.svc.cluster.local}"
 DB_PORT="${DB_PORT:-3306}"
 
 : "${DB_NAME:?DB_NAME doit etre defini dans $SECRET_ENV_PATH}"

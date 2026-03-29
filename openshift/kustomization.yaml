@@ -3,13 +3,11 @@ kind: Kustomization
 
 namespace: ad-gomis-dev
 
-# Ordre de déploiement : namespace → réseaux → stockage → VMs
+# Ordre de déploiement : namespace -> secret -> DB Pod -> VMs -> exposition Web
 resources:
   - namespace.yaml
   - secrets/db-credentials.yaml
-  - network/nad-lan.yaml
-  - network/nad-dmz.yaml
-  - vms/vm3-db.yaml       # VM3 en premier (stockage persistant)
+  - services/db-mysql.yaml
   - vms/vm1-firewall.yaml
   - vms/vm2-web.yaml
   - services/svc-web.yaml

@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-sql
+  namespace: ad-gomis-dev
+  labels:
+    app: ad-gomis-dev
+    role: db
+    tier: data
+
+data:
+  01-init.sql: |
+    USE appdb;
+
+    CREATE TABLE IF NOT EXISTS utilisateurs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nom VARCHAR(100) NOT NULL,
+      email VARCHAR(150) UNIQUE NOT NULL,
+      statut ENUM('actif','inactif') DEFAULT 'actif',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_email (email),
+      INDEX idx_statut (statut)
+    ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    INSERT INTO utilisateurs (nom, email)
+    VALUES
+      ('Abdoulaye Wade', 'abdoulayewade98@gmail.com'),
+      ('Sonia Diatta', 'sonia.diatta@yahoo.fr'),
+      ('Babacar Diop', 'diopbabacar@uadb.edu.sn')
+    ON DUPLICATE KEY UPDATE statut = statut;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-mysql-data
+  namespace: ad-gomis-dev
+  labels:
+    app: ad-gomis-dev
+    role: db
+    tier: data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-db
+  namespace: ad-gomis-dev
+  labels:
+    app: ad-gomis-dev
+    role: db
+    tier: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ad-gomis-dev
+      role: db
+      tier: data
+  template:
+    metadata:
+      labels:
+        app: ad-gomis-dev
+        role: db
+        tier: data
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_NAME
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_PASS
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_ROOT_PASS
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+            - name: mysql-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: pvc-mysql-data
+        - name: mysql-init
+          configMap:
+            name: mysql-init-sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-db
+  namespace: ad-gomis-dev
+  labels:
+    app: ad-gomis-dev
+    role: db
+    tier: data
+spec:
+  type: ClusterIP
+  selector:
+    app: ad-gomis-dev
+    role: db
+    tier: data
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306

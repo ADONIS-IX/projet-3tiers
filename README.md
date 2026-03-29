@@ -1,19 +1,27 @@
-# Projet de Fin de Module — Architecture 3-tiers sur OpenShift Virtualization
+# Projet de Fin de Module — Architecture 3-tiers Hybride sur OpenShift
 
 ## Vue d'ensemble
 
-Ce projet déploie une architecture réseau **3-tiers virtualisée** sur **OpenShift Virtualization (KubeVirt)** avec isolation réseau complète via iptables.
+Ce projet déploie une architecture **3-tiers hybride** sur OpenShift:
+
+- Tiers 1: VM1 Firewall (KubeVirt)
+- Tiers 2: VM2 Web (KubeVirt)
+- Tiers 3: Base MySQL en Pod natif OpenShift
 
 ```text
-Internet (NAT)
-      │
-   [VM1 — Firewall/Passerelle]   eth0=WAN | eth1=LAN | eth2=DMZ
-      │                    │
-   Réseau LAN          Réseau DMZ
-  192.168.10.0/24    192.168.100.0/24
-      │                    │
-  [VM3 — MySQL]       [VM2 — Nginx + Node.js]
-  192.168.10.10       192.168.100.10
+Internet
+    |
+Route OpenShift (TLS edge)
+    |
+Service svc-web
+    |
+VM2 Web (Nginx + Node.js)
+    |
+Service mysql-db
+    |
+Pod MySQL + PVC
+
+VM1 Firewall est deployee comme composant critique de securite.
 ```
 
 ## Structure du dépôt
@@ -23,17 +31,17 @@ projet-3tiers/
 ├── .github/workflows/ci.yml      # Pipeline CI/CD GitHub Actions
 ├── openshift/
 │   ├── namespace.yaml            # Namespace OpenShift
-│   ├── network/
-│   │   ├── nad-lan.yaml          # NetworkAttachmentDefinition LAN
-│   │   └── nad-dmz.yaml          # NetworkAttachmentDefinition DMZ
+│   ├── services/
+│   │   ├── db-mysql.yaml         # Deployment+Service+PVC MySQL (Pod OpenShift)
+│   │   └── svc-web.yaml          # Service+Route Web
 │   └── vms/
 │       ├── vm1-firewall.yaml     # VM1 Passerelle / Firewall
 │       ├── vm2-web.yaml          # VM2 Serveur Web (Nginx + Node.js)
-│       └── vm3-db.yaml           # VM3 Serveur Base de Données (MySQL)
+│       └── (retire)              # VM3 remplacee par DB Pod OpenShift
 ├── scripts/
 │   ├── vm1-iptables.sh           # Règles iptables VM1
 │   ├── vm2-setup.sh              # Installation Nginx + Node.js
-│   ├── vm3-mysql.sh              # Installation MySQL
+│   ├── vm3-mysql.sh              # Script historique (non utilise en mode hybride)
 │   └── validate.sh               # Script de validation finale
 └── app/
     ├── server.js                 # Application Node.js
@@ -43,7 +51,6 @@ projet-3tiers/
 ## Prérequis
 
 - OpenShift 4.x avec OpenShift Virtualization (KubeVirt) activé
-- Plugin Multus CNI installé (inclus par défaut dans OpenShift Virtualization)
 - `oc` CLI configuré et connecté au cluster
 - Accès cluster-admin ou permissions sur le namespace
 
@@ -62,81 +69,75 @@ oc apply -f openshift/namespace.yaml
 oc get csv -n openshift-cnv | grep kubevirt
 ```
 
-### Étape 2 — Créer les réseaux virtuels
-
-```bash
-# Créer les NetworkAttachmentDefinitions
-oc apply -f openshift/network/nad-lan.yaml
-oc apply -f openshift/network/nad-dmz.yaml
-
-# Vérifier
-oc get network-attachment-definitions -n projet-3tiers
-```
-
-### Étape 2b — Créer le Secret OpenShift pour la base
+### Étape 2 — Créer le Secret OpenShift pour la base
 
 ```bash
 oc apply -f openshift/secrets/db-credentials.yaml
 ```
 
-### Étape 3 — Déployer les VMs
+### Étape 3 — Déployer la base MySQL (Pod OpenShift)
 
 ```bash
-# Important : déployer dans cet ordre
-oc apply -f openshift/vms/vm1-firewall.yaml
-oc apply -f openshift/vms/vm2-web.yaml
-oc apply -f openshift/vms/vm3-db.yaml
-
-# Suivre le démarrage des VMs
-oc get vmi -n projet-3tiers -w
+oc apply -f openshift/services/db-mysql.yaml
+oc rollout status deploy/mysql-db -n ad-gomis-dev
 ```
 
-### Étape 4 — Se connecter aux VMs (via virtctl)
+### Étape 4 — Déployer les VMs critiques
+
+```bash
+oc apply -f openshift/vms/vm1-firewall.yaml
+oc apply -f openshift/vms/vm2-web.yaml
+
+# runStrategy=Manual en sandbox
+virtctl start vm1-firewall -n ad-gomis-dev
+virtctl start vm2-web -n ad-gomis-dev
+
+# Suivre le démarrage des VMs
+oc get vmi -n ad-gomis-dev -w
+```
+
+### Étape 5 — Se connecter aux VMs (via virtctl)
 
 ```bash
 # Installer virtctl
 oc get ConsoleCLIDownload virtctl-clidownloads -o json | jq -r '.spec.links[0].href'
 
 # Connexion SSH aux VMs
-virtctl ssh admin@vm1-firewall -n projet-3tiers
-virtctl ssh admin@vm2-web      -n projet-3tiers
-virtctl ssh admin@vm3-db       -n projet-3tiers
+virtctl ssh admin@vm1-firewall -n ad-gomis-dev
+virtctl ssh admin@vm2-web      -n ad-gomis-dev
 ```
 
-### Étape 5 — Configurer les services (si cloud-init n'est pas utilisé)
+### Étape 6 — Configurer le service Web (si cloud-init n'est pas utilisé)
 
 ```bash
-# Injecter les secrets puis configurer VM2 et VM3
+# Injecter les secrets puis configurer VM2
 ./deploy.sh
 
 # Sur VM1 : Configurer iptables
-virtctl ssh admin@vm1-firewall -n projet-3tiers -- 'bash /root/iptables-setup.sh'
+virtctl ssh admin@vm1-firewall -n ad-gomis-dev -- 'bash /root/iptables-setup.sh'
 
 # Sur VM2 : Installer Nginx + Node.js
-virtctl ssh admin@vm2-web -n projet-3tiers -- 'bash /root/vm2-setup.sh'
-
-# Sur VM3 : Installer MySQL
-virtctl ssh admin@vm3-db -n projet-3tiers -- 'bash /root/vm3-mysql.sh'
+virtctl ssh admin@vm2-web -n ad-gomis-dev -- 'bash /root/vm2-setup.sh'
 ```
 
-### Étape 6 — Valider l'architecture
+### Étape 7 — Valider l'architecture
 
 ```bash
-# Depuis VM1, exécuter le script de validation
-virtctl ssh admin@vm1-firewall -n projet-3tiers -- 'bash /root/validate.sh'
+# Vérification des ressources
+oc get vm,vmi,deploy,pod,svc,route,pvc -n ad-gomis-dev
+
+# Vérifier l'URL publique
+ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
+curl -k "https://${ROUTE_URL}/health"
 ```
 
 ## Règles iptables — Politique de sécurité
 
 | # | Source | Destination | Port | Action | Justification |
 | --- | --- | --- | --- | --- | --- |
-| R1 | Internet (WAN) | LAN (VM3 BD) | Tous | **DROP** | BD non exposée à Internet |
-| R2 | DMZ (VM2 Web) | LAN (VM3 BD) | 3306 | **ACCEPT** | Seul flux applicatif Web -> BD |
-| R2b | DMZ (VM2 Web) | LAN (VM3 BD) | Autres | **DROP** | Isolation stricte Web/BD |
-| R3 | LAN (VM3 BD) | DMZ (VM2 Web) | 80,443,3000 | ACCEPT | BD peut consulter Web |
-| R3 | LAN (VM3 BD) | Internet | Tous | ACCEPT | BD peut accéder Internet |
-| R4 | Internet | DMZ (VM2 Web) | 80, 443 | ACCEPT | Accès Web public |
-| R5 | DMZ (VM2 Web) | Internet | Tous | ACCEPT | Web peut accéder Internet |
+| R1 | Internet | VM2 Web | 80/443 | ACCEPT | Accès applicatif public via Route |
+| R2 | VM2 Web | Service mysql-db | 3306 | ACCEPT | Flux applicatif Web -> DB |
+| R3 | Internet | Pod MySQL | Tous | DROP implicite | DB non exposée publiquement |
 
 ## Vérification de la connectivité
 
@@ -144,17 +145,14 @@ virtctl ssh admin@vm1-firewall -n projet-3tiers -- 'bash /root/validate.sh'
 # Test 1 : Accès Web depuis l'extérieur (R4)
 curl http://<IP_EXTERNE>/
 
-# Test 2 : VM3 ne doit pas être accessible depuis Internet (R1)
-nc -zv <IP_EXTERNE> 3306   # doit échouer
+# Test 2 : MySQL ne doit pas être exposé publiquement
+oc get svc -n ad-gomis-dev | grep mysql-db
+# attendu: ClusterIP uniquement
 
-# Test 3 : VM2 accède à VM3 uniquement sur 3306 (R2)
-# Depuis VM2 :
-nc -zv 192.168.10.10 3306  # doit réussir
-nc -zv 192.168.10.10 22    # doit échouer
-
-# Test 4 : VM3 peut joindre VM2 (R3)
-# Depuis VM3 :
-curl http://192.168.100.10  # doit réussir
+# Test 3 : Santé applicative
+ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
+curl -k "https://${ROUTE_URL}/health"
+curl -k "https://${ROUTE_URL}/api/users"
 ```
 
 ## Intégration GitHub
@@ -185,7 +183,7 @@ main          ← production stable
 ├── develop   ← intégration
 │   ├── feature/vm1-iptables
 │   ├── feature/vm2-nginx-nodejs
-│   └── feature/vm3-mysql
+│   └── feature/db-pod-openshift
 ```
 
 ---

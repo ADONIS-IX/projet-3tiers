@@ -10,7 +10,7 @@ let pool = null;
 function getPool() {
   if (!pool) {
     pool = mysql.createPool({
-      host:               process.env.DB_HOST     || '192.168.10.10',
+      host:               process.env.DB_HOST     || 'mysql-db.ad-gomis-dev.svc.cluster.local',
       port:               parseInt(process.env.DB_PORT || '3306', 10),
       database:           process.env.DB_NAME     || 'appdb',
       user:               process.env.DB_USER     || 'webuser',
