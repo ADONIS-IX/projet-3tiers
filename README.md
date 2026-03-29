@@ -1,193 +1,87 @@
-# Projet de Fin de Module — Architecture 3-tiers Hybride sur OpenShift
+# Projet 3-tiers Hybride sur OpenShift
 
 ## Vue d'ensemble
 
-Ce projet déploie une architecture **3-tiers hybride** sur OpenShift:
+Architecture retenue et validee:
 
-- Tiers 1: VM1 Firewall (KubeVirt)
-- Tiers 2: VM2 Web (KubeVirt)
-- Tiers 3: Base MySQL en Pod natif OpenShift
+- Tier 1: VM1 Firewall (KubeVirt)
+- Tier 2: VM2 Web persistante (KubeVirt + DataVolume/PVC, Nginx)
+- Tier 2 bis: Pod fallback Web (Deployment OpenShift)
+- Tier 3: Base MySQL en Pod OpenShift (Deployment + PVC)
+
+Schema logique:
 
 ```text
 Internet
     |
 Route OpenShift (TLS edge)
     |
-Service svc-web
+Service web-service-ha (selector: role=web)
     |
-VM2 Web (Nginx + Node.js)
++---------------------------+
+| VM2 Web | Pod fallback    |
++---------------------------+
     |
-Service mysql-db
+Service mysql-db (ClusterIP)
     |
 Pod MySQL + PVC
-
-VM1 Firewall est deployee comme composant critique de securite.
 ```
 
-## Structure du dépôt
+Le service web reste disponible meme si la VM2 est arretee par les contraintes du sandbox.
+La VM2 conserve son etat disque entre redemarrages grace au DataVolume `vm2-web-rootdisk`.
+
+## Structure essentielle du depot
 
 ```text
 projet-3tiers/
-├── .github/workflows/ci.yml      # Pipeline CI/CD GitHub Actions
+├── deploy.sh
 ├── openshift/
-│   ├── namespace.yaml            # Namespace OpenShift
+│   ├── namespace.yaml
+│   ├── secrets/
+│   │   └── db-credentials.yaml
 │   ├── services/
-│   │   ├── db-mysql.yaml         # Deployment+Service+PVC MySQL (Pod OpenShift)
-│   │   └── svc-web.yaml          # Service+Route Web
+│   │   ├── db-mysql.yaml
+│   │   └── svc-web.yaml
 │   └── vms/
-│       ├── vm1-firewall.yaml     # VM1 Passerelle / Firewall
-│       ├── vm2-web.yaml          # VM2 Serveur Web (Nginx + Node.js)
-│       └── (retire)              # VM3 remplacee par DB Pod OpenShift
-├── scripts/
-│   ├── vm1-iptables.sh           # Règles iptables VM1
-│   ├── vm2-setup.sh              # Installation Nginx + Node.js
-│   ├── vm3-mysql.sh              # Script historique (non utilise en mode hybride)
-│   └── validate.sh               # Script de validation finale
-└── app/
-    ├── server.js                 # Application Node.js
-    └── package.json
+│       ├── vm1-firewall.yaml
+│       └── vm2-web.yaml
+├── docs/
+│   ├── GUIDE_EXECUTION_MISE_EN_OEUVRE.md
+│   ├── VALIDATION.md
+│   └── RAPPORT_FINAL_PRET_IMPRESSION_PDF.md
+└── scripts/
+    ├── vm1-iptables.sh
+    └── validate.sh
 ```
 
-## Prérequis
-
-- OpenShift 4.x avec OpenShift Virtualization (KubeVirt) activé
-- `oc` CLI configuré et connecté au cluster
-- Accès cluster-admin ou permissions sur le namespace
-
-## Déploiement — Guide pas à pas
-
-### Étape 1 — Préparer l'environnement OpenShift
+## Deploiement rapide
 
 ```bash
-# Connexion au cluster
-oc login --server=https://api.VOTRE_CLUSTER:6443
+oc project ad-gomis-dev
+oc apply -k openshift
 
-# Créer le namespace
-oc apply -f openshift/namespace.yaml
-
-# Vérifier que OpenShift Virtualization est actif
-oc get csv -n openshift-cnv | grep kubevirt
+virtctl start vm1-firewall -n ad-gomis-dev || true
+virtctl start vm2-web -n ad-gomis-dev || true
 ```
 
-### Étape 2 — Créer le Secret OpenShift pour la base
+## Verification
 
 ```bash
-oc apply -f openshift/secrets/db-credentials.yaml
-```
-
-### Étape 3 — Déployer la base MySQL (Pod OpenShift)
-
-```bash
-oc apply -f openshift/services/db-mysql.yaml
-oc rollout status deploy/mysql-db -n ad-gomis-dev
-```
-
-### Étape 4 — Déployer les VMs critiques
-
-```bash
-oc apply -f openshift/vms/vm1-firewall.yaml
-oc apply -f openshift/vms/vm2-web.yaml
-
-# runStrategy=Manual en sandbox
-virtctl start vm1-firewall -n ad-gomis-dev
-virtctl start vm2-web -n ad-gomis-dev
-
-# Suivre le démarrage des VMs
-oc get vmi -n ad-gomis-dev -w
-```
-
-### Étape 5 — Se connecter aux VMs (via virtctl)
-
-```bash
-# Installer virtctl
-oc get ConsoleCLIDownload virtctl-clidownloads -o json | jq -r '.spec.links[0].href'
-
-# Connexion SSH aux VMs
-virtctl ssh admin@vm1-firewall -n ad-gomis-dev
-virtctl ssh admin@vm2-web      -n ad-gomis-dev
-```
-
-### Étape 6 — Configurer le service Web (si cloud-init n'est pas utilisé)
-
-```bash
-# Injecter les secrets puis configurer VM2
-./deploy.sh
-
-# Sur VM1 : Configurer iptables
-virtctl ssh admin@vm1-firewall -n ad-gomis-dev -- 'bash /root/iptables-setup.sh'
-
-# Sur VM2 : Installer Nginx + Node.js
-virtctl ssh admin@vm2-web -n ad-gomis-dev -- 'bash /root/vm2-setup.sh'
-```
-
-### Étape 7 — Valider l'architecture
-
-```bash
-# Vérification des ressources
 oc get vm,vmi,deploy,pod,svc,route,pvc -n ad-gomis-dev
 
-# Vérifier l'URL publique
-ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
-curl -k "https://${ROUTE_URL}/health"
-```
-
-## Règles iptables — Politique de sécurité
-
-| # | Source | Destination | Port | Action | Justification |
-| --- | --- | --- | --- | --- | --- |
-| R1 | Internet | VM2 Web | 80/443 | ACCEPT | Accès applicatif public via Route |
-| R2 | VM2 Web | Service mysql-db | 3306 | ACCEPT | Flux applicatif Web -> DB |
-| R3 | Internet | Pod MySQL | Tous | DROP implicite | DB non exposée publiquement |
-
-## Vérification de la connectivité
-
-```bash
-# Test 1 : Accès Web depuis l'extérieur (R4)
-curl http://<IP_EXTERNE>/
-
-# Test 2 : MySQL ne doit pas être exposé publiquement
-oc get svc -n ad-gomis-dev | grep mysql-db
-# attendu: ClusterIP uniquement
-
-# Test 3 : Santé applicative
 ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
 curl -k "https://${ROUTE_URL}/health"
 curl -k "https://${ROUTE_URL}/api/users"
 ```
 
-## Intégration GitHub
+## Tolerance aux pannes (sandbox)
 
-### Initialisation du dépôt
+Face aux restrictions strictes du sandbox (extinction automatique de VMs containerDisk), le trafic web est gere par un Service Kubernetes unique (`web-service-ha`) qui englobe:
 
-```bash
-git init
-git remote add origin https://github.com/ADONIS-IX/projet-3tiers.git
-git add .
-git commit -m "feat: architecture 3-tiers initiale"
-git push -u origin main
-```
+- la VM2 (validation KubeVirt)
+- un Pod fallback leger
 
-### Conventions de commit
+Ainsi, lorsque VM2 est evincee, la route publique continue de repondre en HTTP 200 sans interruption utilisateur.
+Quand VM2 redemarre, le disque persistant evite de reperdre la couche systeme configuree.
 
-```text
-feat:  nouvelle fonctionnalité
-fix:   correction de bug
-docs:  documentation
-chore: maintenance
-```
-
-## Partie 4 — Structure recommandée des branches GitHub
-
-```text
-main          ← production stable
-├── develop   ← intégration
-│   ├── feature/vm1-iptables
-│   ├── feature/vm2-nginx-nodejs
-│   └── feature/db-pod-openshift
-```
-
----
-
-## Note
-
-Projet réalisé dans le cadre du TP Architecture Réseau Virtualisée.
+Note sandbox: selon la fenetre de charge du cluster, l'import DataVolume de VM2 peut rester en `Provisioning` (restriction platforme). La route publique reste operationnelle grace au Pod fallback.

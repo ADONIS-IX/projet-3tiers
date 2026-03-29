@@ -13,7 +13,7 @@ resources:
   - services/svc-web.yaml
 
 labels:
-  - includeSelectors: true
+  - includeSelectors: false
     pairs:
       app: ad-gomis-dev
       env: tp

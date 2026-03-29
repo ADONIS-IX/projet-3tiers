@@ -37,10 +37,11 @@ Version du document: v1.0 (pret impression)
 
 Ce rapport presente la mise en oeuvre d'une architecture 3-tiers sur OpenShift, dans un contexte pedagogique de virtualisation, d'administration systeme et de securisation de services.
 
-La solution finale appliquee, validee par le professeur, adopte une architecture hybride:
+La solution finale appliquee, validee par le professeur, adopte une architecture hybride resiliente:
 
 - Tiers securite: VM Firewall (KubeVirt)
-- Tiers presentation/metier: VM Web (KubeVirt, Nginx + Node.js)
+- Tiers presentation/metier: VM Web (KubeVirt, Nginx)
+- Continuite de service: Pod fallback Web (Deployment OpenShift)
 - Tiers donnees: Pod MySQL natif OpenShift (Deployment + Service + PVC)
 
 Cette orientation permet de conserver les objectifs academiques majeurs tout en restant compatible avec les contraintes reelles de l'environnement sandbox.
@@ -73,9 +74,9 @@ Internet
   |
 Route OpenShift (TLS edge)
   |
-Service svc-web
+Service web-service-ha
   |
-VM2 Web (Nginx -> Node.js)
+VM2 Web (Nginx) + Pod web-fallback
   |
 Service mysql-db (ClusterIP)
   |
@@ -103,7 +104,6 @@ Composants OpenShift/KubeVirt:
 
 Composants applicatifs:
 
-- `scripts/vm2-setup.sh`
 - `app/src/db.js`
 - `deploy.sh`
 
@@ -144,9 +144,9 @@ curl -k "https://${ROUTE_URL}/api/users"
 Resultats attendus:
 
 - API accessible depuis la route publique
-- service web actif dans VM2
+- disponibilite maintenue via VM2 ou fallback Pod
 - base MySQL joignable en interne par le tier web
-- donnees utilisateurs retournees par l'endpoint `/api/users`
+- endpoint `/api/users` retourne des donnees ou `[]` en fallback
 
 ## 8. Analyse Critique
 

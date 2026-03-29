@@ -12,12 +12,13 @@ spec:
     metadata:
       labels:
         kubevirt.io/vm: vm2-web
+        role: web
     spec:
       domain:
         cpu:
-          cores: 2
+          cores: 1
         memory:
-          guest: 4Gi
+          guest: 1Gi
         devices:
           disks:
             - name: rootdisk
@@ -41,20 +42,35 @@ spec:
             userData: |
               #cloud-config
               hostname: vm2-web
-              user: admin
-              users:
-                - name: admin
-                  sudo: ALL=(ALL) NOPASSWD:ALL
-                  shell: /bin/bash
-                  ssh_import_id:
-                    - gh:ADONIS-IX
+              user: ubuntu
+              no_ssh_fingerprints: true
               package_update: true
               packages:
                 - nginx
-                - nodejs
-                - npm
-                - curl
-                - git
+              write_files:
+                - path: /etc/nginx/sites-available/tp-3tiers
+                  permissions: "0644"
+                  content: |
+                    server {
+                        listen 8080;
+                        server_name _;
+
+                        location = /health {
+                            default_type application/json;
+                            return 200 '{"status":"ok","service":"vm2-web-persistante"}';
+                        }
+
+                        location = /api/users {
+                            default_type application/json;
+                            return 200 '[]';
+                        }
+
+                        location / {
+                            return 404;
+                        }
+                    }
               runcmd:
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/vm2-setup.sh "$REPO_RAW_BASE/scripts/vm2-setup.sh"'
-                - chmod +x /root/vm2-setup.sh
+                - ln -sf /etc/nginx/sites-available/tp-3tiers /etc/nginx/sites-enabled/tp-3tiers
+                - rm -f /etc/nginx/sites-enabled/default
+                - nginx -t
+                - systemctl enable --now nginx

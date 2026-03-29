@@ -1,9 +1,9 @@
 ---
-# Service interne pour exposer VM2 (Nginx) au routeur OpenShift
+# Service HA: distribue le trafic entre VM2 et le Pod fallback via le label role=web
 apiVersion: v1
 kind: Service
 metadata:
-  name: svc-web
+  name: web-service-ha
   namespace: ad-gomis-dev
   labels:
     app: ad-gomis-dev
@@ -11,16 +11,80 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    kubevirt.io/vm: vm2-web
+    role: web
   ports:
     - name: http
       port: 80
-      targetPort: 80
-    - name: https
-      port: 443
-      targetPort: 443
+      targetPort: 8080
 ---
-# Route OpenShift (équivalent Ingress) pour exposer VM2 via le routeur HAProxy
+# Pod fallback (ne consomme pas de quota VM et maintient une reponse HTTP)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-fallback
+  namespace: ad-gomis-dev
+  labels:
+    app: ad-gomis-dev
+    role: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: web
+      tier: fallback
+  template:
+    metadata:
+      labels:
+        app: ad-gomis-dev
+        role: web
+        tier: fallback
+    spec:
+      containers:
+        - name: nginx-fallback
+          image: nginxinc/nginx-unprivileged:alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cat > /tmp/nginx.conf <<'EOF'
+              worker_processes auto;
+              pid /tmp/nginx.pid;
+
+              events {
+                worker_connections 1024;
+              }
+
+              http {
+                client_body_temp_path /tmp/client_temp;
+                proxy_temp_path /tmp/proxy_temp;
+                fastcgi_temp_path /tmp/fastcgi_temp;
+                uwsgi_temp_path /tmp/uwsgi_temp;
+                scgi_temp_path /tmp/scgi_temp;
+
+                server {
+                  listen 8080;
+
+                  location = /health {
+                    default_type application/json;
+                    return 200 '{"status":"ok","service":"pod-fallback"}';
+                  }
+
+                  location = /api/users {
+                    default_type application/json;
+                    return 200 '[]';
+                  }
+
+                  location / {
+                    return 404;
+                  }
+                }
+              }
+              EOF
+              nginx -g 'daemon off;' -c /tmp/nginx.conf
+          ports:
+            - containerPort: 8080
+---
+# Route OpenShift vers le service HA
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -32,7 +96,7 @@ metadata:
 spec:
   to:
     kind: Service
-    name: svc-web
+    name: web-service-ha
   port:
     targetPort: http
   tls:

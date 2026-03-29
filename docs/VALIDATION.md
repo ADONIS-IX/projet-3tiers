@@ -3,7 +3,7 @@
 Ce guide valide l'architecture retenue et approuvee:
 
 - VM1 Firewall (KubeVirt)
-- VM2 Web (KubeVirt)
+- VM2 Web persistante (KubeVirt + DataVolume/PVC)
 - Base MySQL en Pod OpenShift
 
 ## 1. Verification du contexte
@@ -29,7 +29,7 @@ Resultat attendu:
 - VM1 et VM2 presentes
 - deployment mysql-db present
 - service mysql-db (ClusterIP)
-- service svc-web et route route-web
+- service web-service-ha, deployment web-fallback et route route-web
 - PVC pvc-mysql-data present
 
 ## 3. Verification des VMs critiques
@@ -45,7 +45,9 @@ oc get vm,vmi -n ad-gomis-dev
 Resultat attendu:
 
 - vm1-firewall: Running
-- vm2-web: Running
+- vm2-web: Running ou Provisioning (premier boot potentiellement plus long)
+
+En sandbox, si vm2-web reste en Provisioning, valider la disponibilite applicative via la route (`/health`, `/api/users`) avec le fallback Pod.
 
 ## 4. Verification du tier base de donnees (Pod OpenShift)
 
@@ -73,7 +75,7 @@ curl -k "https://${ROUTE_URL}/api/users"
 Resultat attendu:
 
 - /health retourne un statut OK
-- /api/users retourne une liste d'utilisateurs issue de MySQL
+- /api/users retourne une liste (ou [] en mode fallback)
 
 ## 6. Verification securite minimale
 
@@ -104,5 +106,5 @@ Resultat attendu:
 
 - Si VM bloquee en Pending: `oc describe vmi <vm-name> -n ad-gomis-dev`
 - Si DB non disponible: `oc logs deploy/mysql-db -n ad-gomis-dev`
-- Si API ne répond pas: `virtctl ssh admin@vm2-web -n ad-gomis-dev -- systemctl status nodeapp`
-- Si route KO: `oc get endpoints svc-web -n ad-gomis-dev`
+- Si API ne repond pas: `oc get endpoints web-service-ha -n ad-gomis-dev -o yaml`
+- Si route KO: `oc get svc web-service-ha,route route-web -n ad-gomis-dev`

@@ -3,7 +3,7 @@
 Ce guide fournit une procedure de demonstration complete pour l'architecture validee:
 
 - VM1 Firewall (KubeVirt)
-- VM2 Web (KubeVirt)
+- VM2 Web (KubeVirt, mode secours containerDisk)
 - DB MySQL en Pod OpenShift
 
 Objectif: executer, verifier et produire les captures essentielles a inserer dans le rapport academique.
@@ -77,7 +77,7 @@ Resultat attendu:
 - secret configure/created
 - mysql-db (configmap/deployment/service/pvc) applique
 - vm1-firewall et vm2-web appliquees
-- svc-web + route-web appliquees
+- web-service-ha + web-fallback + route-web appliquees
 
 Capture essentielle:
 
@@ -97,6 +97,10 @@ Resultat attendu:
 
 - vm1-firewall: Running
 - vm2-web: Running
+
+Important sandbox:
+
+- la route continue de repondre via `web-fallback` meme en cas d'arret/instabilite de vm2-web
 
 Capture essentielle:
 
@@ -129,6 +133,20 @@ Capture essentielle:
 ```bash
 oc get route route-web -n ad-gomis-dev
 ```
+
+Si la route affiche "Application is not available", appliquer ce correctif:
+
+```bash
+virtctl start vm2-web -n ad-gomis-dev || true
+oc delete svc web-service-ha -n ad-gomis-dev --ignore-not-found=true
+oc apply -f openshift/services/svc-web.yaml
+oc get endpoints web-service-ha -n ad-gomis-dev -o yaml
+```
+
+Verification attendue apres correctif:
+
+- le service `web-service-ha` existe
+- au moins une entree apparait dans `subsets.addresses` des endpoints
 
 Resultat attendu:
 
@@ -167,7 +185,7 @@ curl -k "https://${ROUTE_URL}/api/users"
 
 Resultat attendu:
 
-- JSON contenant les utilisateurs depuis MySQL
+- JSON contenant des utilisateurs ou `[]` si fallback Pod actif
 
 Capture essentielle:
 
@@ -248,3 +266,35 @@ Utiliser ce bloc pour coller rapidement les captures dans le rapport final:
 - Eviter les captures tronquees
 - Utiliser une nomenclature de fichiers numerotee (CAP-01, CAP-02, ...)
 - Exporter le rapport final en PDF apres insertion des captures
+
+## 6. Depannage Rapide - "Application is not available"
+
+Si la route retourne la page HTML "Application is not available", verifier dans cet ordre:
+
+```bash
+oc get vm,vmi -n ad-gomis-dev
+oc get endpoints web-service-ha -n ad-gomis-dev -o yaml
+oc get svc web-service-ha -n ad-gomis-dev -o yaml | sed -n '1,120p'
+```
+
+Interpretation:
+
+- VMI `vm2-web` non Running: demarrer la VM
+
+```bash
+virtctl start vm2-web -n ad-gomis-dev
+```
+
+- Endpoints vides alors que VM2 est Running: reappliquer les manifests (correction selecteur)
+
+```bash
+oc apply -k openshift
+```
+
+Validation finale:
+
+```bash
+ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
+curl -k "https://${ROUTE_URL}/health"
+curl -k "https://${ROUTE_URL}/api/users"
+```

@@ -26,37 +26,9 @@ ok()   { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
-get_secret_value() {
-  local key="$1"
-  oc get secret db-credentials -n "$NAMESPACE" -o "jsonpath={.data.${key}}" | base64 -d
-}
-
 configure_vm_services() {
-  log "Injection des secrets OpenShift dans VM2..."
-
-  local db_host db_port db_name db_user db_pass
-  db_host="$(get_secret_value DB_HOST)"
-  db_port="$(get_secret_value DB_PORT)"
-  db_name="$(get_secret_value DB_NAME)"
-  db_user="$(get_secret_value DB_USER)"
-  db_pass="$(get_secret_value DB_PASS)"
-
-  local vm2_env
-  vm2_env=$(cat <<EOF
-DB_HOST=$db_host
-DB_PORT=$db_port
-DB_NAME=$db_name
-DB_USER=$db_user
-DB_PASS=$db_pass
-EOF
-)
-
-  printf '%s\n' "$vm2_env" | virtctl ssh admin@vm2-web -n "$NAMESPACE" -- "cat > /root/db-secrets.env && chmod 600 /root/db-secrets.env"
-
-  log "Exécution du script applicatif sur VM2..."
-  virtctl ssh admin@vm2-web -n "$NAMESPACE" -- "TP3_SECRET_ENV_PATH=/root/db-secrets.env bash /root/vm2-setup.sh"
-
-  ok "Service VM2 (Nginx+Node.js) configure"
+  log "Configuration VM2 via cloud-init inline minimal (mode persistant + HA)..."
+  ok "Aucune configuration SSH requise pour VM2"
 }
 
 # ── Vérifications préalables ─────────────────────────────────────────────────
@@ -75,9 +47,14 @@ check_prerequisites() {
     exit 1
   fi
 
-  # Vérifier que OpenShift Virtualization est installé
-  if ! oc get crd virtualmachines.kubevirt.io &>/dev/null; then
-    err "OpenShift Virtualization (KubeVirt) n'est pas installé sur ce cluster"
+  # Vérifier la disponibilité des API KubeVirt/CDI via discovery (compatible RBAC sandbox)
+  if ! oc api-resources --api-group=kubevirt.io -o name 2>/dev/null | grep -q '^virtualmachines\.kubevirt\.io$'; then
+    err "OpenShift Virtualization (API kubevirt.io/virtualmachines) n'est pas disponible"
+    exit 1
+  fi
+
+  if ! oc api-resources --api-group=cdi.kubevirt.io -o name 2>/dev/null | grep -q '^datavolumes\.cdi\.kubevirt\.io$'; then
+    err "CDI (API cdi.kubevirt.io/datavolumes) n'est pas disponible"
     exit 1
   fi
 
@@ -120,9 +97,13 @@ deploy() {
   check_prerequisites
 
   # Étape 1 — Namespace
-  log "Étape 1/6 — Création du namespace..."
-  oc apply -f "$SCRIPT_DIR/openshift/namespace.yaml"
-  ok "Namespace $NAMESPACE prêt"
+  log "Étape 1/6 — Vérification du namespace..."
+  if oc get namespace "$NAMESPACE" &>/dev/null; then
+    ok "Namespace $NAMESPACE déjà présent (réutilisé)"
+  else
+    oc create namespace "$NAMESPACE"
+    ok "Namespace $NAMESPACE créé"
+  fi
 
   # Étape 2 — Secret OpenShift
   log "Étape 2/6 — Création du Secret OpenShift (db-credentials)..."
@@ -131,14 +112,27 @@ deploy() {
 
   # Étape 3 — Base de données en Pod OpenShift
   log "Étape 3/6 — Déploiement de la base MySQL (Pod OpenShift + PVC + Service)..."
-  oc apply -f "$SCRIPT_DIR/openshift/services/db-mysql.yaml"
+  if oc get deploy mysql-db -n "$NAMESPACE" &>/dev/null \
+    && oc get svc mysql-db -n "$NAMESPACE" &>/dev/null \
+    && oc get pvc pvc-mysql-data -n "$NAMESPACE" &>/dev/null; then
+    warn "Ressources DB déjà présentes: réutilisation sans réapplication"
+  else
+    oc apply -f "$SCRIPT_DIR/openshift/services/db-mysql.yaml"
+  fi
   oc rollout status deploy/mysql-db -n "$NAMESPACE" --timeout=180s
   ok "Base MySQL prête"
 
   # Étape 4 — Déploiement des VMs critiques
   log "Étape 4/6 — Déploiement des VMs Firewall et Web..."
   oc apply -f "$SCRIPT_DIR/openshift/vms/vm1-firewall.yaml"
-  oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"
+  if ! oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"; then
+    warn "Migration VM2 vers disque persistant: recréation de vm2-web"
+    virtctl stop vm2-web -n "$NAMESPACE" || true
+    oc delete vm vm2-web -n "$NAMESPACE" --ignore-not-found=true
+    oc delete dv vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
+    oc delete pvc vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
+    oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"
+  fi
 
   log "Démarrage explicite des VMs (runStrategy=Manual)..."
   virtctl start vm1-firewall -n "$NAMESPACE" || true
@@ -146,7 +140,9 @@ deploy() {
 
   # Attendre chaque VM
   wait_for_vm "vm1-firewall"
-  wait_for_vm "vm2-web"
+  if ! wait_for_vm "vm2-web"; then
+    warn "VM2 n'est pas prête dans le délai imparti (sandbox). Le fallback web reste actif."
+  fi
 
   # Étape 5 — Configuration applicative via Secret OpenShift
   log "Étape 5/6 — Configuration du service Web..."
@@ -154,6 +150,9 @@ deploy() {
 
   # Étape 6 — Service et Route
   log "Étape 6/6 — Exposition du service Web..."
+  # Important: supprimer les anciens services pour éviter les collisions de selectors.
+  oc delete svc web-service-ha -n "$NAMESPACE" --ignore-not-found=true
+  oc delete deploy web-fallback -n "$NAMESPACE" --ignore-not-found=true
   oc apply -f "$SCRIPT_DIR/openshift/services/svc-web.yaml"
   local route_url
   route_url=$(oc get route route-web -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "N/A")
@@ -201,11 +200,16 @@ destroy() {
   oc delete configmap mysql-init-sql -n "$NAMESPACE" --ignore-not-found=true
 
   log "Suppression des services..."
-  oc delete svc svc-web -n "$NAMESPACE" --ignore-not-found=true
+  oc delete svc web-service-ha -n "$NAMESPACE" --ignore-not-found=true
+  oc delete deploy web-fallback -n "$NAMESPACE" --ignore-not-found=true
   oc delete route route-web -n "$NAMESPACE" --ignore-not-found=true
 
-  log "Suppression du secret db-credentials..."
+  log "Suppression des secrets..."
   oc delete secret db-credentials -n "$NAMESPACE" --ignore-not-found=true
+
+  log "Suppression des ressources persistantes VM2..."
+  oc delete dv vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
+  oc delete pvc vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
 
   log "Suppression du PVC MySQL..."
   oc delete pvc pvc-mysql-data -n "$NAMESPACE" --ignore-not-found=true
