@@ -101,6 +101,8 @@ Resultat attendu:
 Important sandbox:
 
 - la route continue de repondre via `web-fallback` meme en cas d'arret/instabilite de vm2-web
+- vm1-firewall peut s'arreter de facon intermittente (runStrategy Manual), relancer avec `virtctl start vm1-firewall -n ad-gomis-dev`
+- pour maintenir VM1 active automatiquement pendant la demo: `./scripts/watch-vm1.sh ad-gomis-dev 15`
 
 Capture essentielle:
 

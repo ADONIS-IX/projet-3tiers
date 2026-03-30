@@ -16,7 +16,7 @@ router.get('/', (_req, res) => {
   });
 });
 
-// GET /health/db — vérification de la connexion MySQL (VM3)
+// GET /health/db — vérification de la connexion MySQL (service interne)
 router.get('/db', async (_req, res) => {
   try {
     const pool = db.getPool();
@@ -25,13 +25,13 @@ router.get('/db', async (_req, res) => {
     );
     res.json({
       status:   'OK',
-      message:  'Connexion MySQL (VM3) opérationnelle',
+      message:  'Connexion MySQL (service mysql-db) operationnelle',
       database: rows[0],
     });
   } catch (err) {
     res.status(503).json({
       status:  'ERROR',
-      message: 'Impossible de joindre VM3 (BD)',
+      message: 'Impossible de joindre le service mysql-db',
       detail:  err.message,
     });
   }

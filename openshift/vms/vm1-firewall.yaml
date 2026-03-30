@@ -48,17 +48,3 @@ spec:
                   shell: /bin/bash
                   ssh_import_id:
                     - gh:ADONIS-IX
-              package_update: true
-              packages:
-                - iptables
-                - iptables-persistent
-                - net-tools
-                - curl
-              runcmd:
-                # Activer le routage IP
-                - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-                - sysctl -p
-                # Copier et exécuter le script iptables
-                - bash -lc 'REPO_RAW_BASE="${TP3_REPO_RAW_BASE:-https://raw.githubusercontent.com/ADONIS-IX/ad-gomis-dev/main}"; curl -fsSL -o /root/iptables-setup.sh "$REPO_RAW_BASE/scripts/vm1-iptables.sh"'
-                - chmod +x /root/iptables-setup.sh
-                - /root/iptables-setup.sh || true

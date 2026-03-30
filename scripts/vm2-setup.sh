@@ -1,5 +1,8 @@
 #!/bin/bash
 # =============================================================================
+# LEGACY: script conserve pour reference pedagogique (VM2 Nginx + Node.js historique).
+# Non utilise par le deploiement sandbox actuel (VM2 containerDisk + fallback web).
+# =============================================================================
 # VM2 — Script d'installation et configuration Nginx + Node.js
 # Réseau DMZ : 192.168.100.10/24
 # =============================================================================

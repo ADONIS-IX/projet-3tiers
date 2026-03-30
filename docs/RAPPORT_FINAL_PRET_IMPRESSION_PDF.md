@@ -40,7 +40,7 @@ Ce rapport presente la mise en oeuvre d'une architecture 3-tiers sur OpenShift, 
 La solution finale appliquee, validee par le professeur, adopte une architecture hybride resiliente:
 
 - Tiers securite: VM Firewall (KubeVirt)
-- Tiers presentation/metier: VM Web (KubeVirt, Nginx)
+- Tiers presentation/metier: VM Web (KubeVirt, containerDisk)
 - Continuite de service: Pod fallback Web (Deployment OpenShift)
 - Tiers donnees: Pod MySQL natif OpenShift (Deployment + Service + PVC)
 
@@ -76,7 +76,7 @@ Route OpenShift (TLS edge)
   |
 Service web-service-ha
   |
-VM2 Web (Nginx) + Pod web-fallback
+VM2 Web (service HTTP minimal) + Pod web-fallback
   |
 Service mysql-db (ClusterIP)
   |

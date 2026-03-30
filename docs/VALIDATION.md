@@ -3,7 +3,7 @@
 Ce guide valide l'architecture retenue et approuvee:
 
 - VM1 Firewall (KubeVirt)
-- VM2 Web persistante (KubeVirt + DataVolume/PVC)
+- VM2 Web (KubeVirt, containerDisk)
 - Base MySQL en Pod OpenShift
 
 ## 1. Verification du contexte
@@ -44,10 +44,10 @@ oc get vm,vmi -n ad-gomis-dev
 
 Resultat attendu:
 
-- vm1-firewall: Running
-- vm2-web: Running ou Provisioning (premier boot potentiellement plus long)
+- vm1-firewall: Running (ou redemarrer si arret intermittent sandbox)
+- vm2-web: Running
 
-En sandbox, si vm2-web reste en Provisioning, valider la disponibilite applicative via la route (`/health`, `/api/users`) avec le fallback Pod.
+En sandbox, si une VM est arretee, valider la disponibilite applicative via la route (`/health`, `/api/users`) avec le fallback Pod.
 
 ## 4. Verification du tier base de donnees (Pod OpenShift)
 

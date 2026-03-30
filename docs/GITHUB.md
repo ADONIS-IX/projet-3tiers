@@ -14,7 +14,7 @@ git remote add origin https://github.com/ADONIS-IX/projet-3tiers.git
 
 # Premier commit
 git add .
-git commit -m "feat: architecture 3-tiers initiale (OpenShift + iptables + Node.js + MySQL)"
+git commit -m "feat: architecture 3-tiers hybride (KubeVirt + fallback web + MySQL)"
 git push -u origin main
 ```
 
@@ -23,9 +23,9 @@ git push -u origin main
 ```text
 main          ← code stable, déployé
 develop       ← intégration en cours
-  ├── feature/vm1-iptables
-  ├── feature/vm2-nginx-nodejs
-  ├── feature/vm3-mysql
+  ├── feature/vm1-firewall
+  ├── feature/vm2-containerdisk-web
+  ├── feature/web-fallback-ha
   └── feature/validation-scripts
 ```
 
@@ -33,7 +33,7 @@ develop       ← intégration en cours
 
 ```text
 feat(vm1): ajouter règle iptables R2 isolation Web/BD
-fix(vm2): corriger le timeout Nginx sur proxy Node.js
+fix(vm2): fiabiliser endpoint /health en mode containerDisk
 docs: ajouter guide de validation VALIDATION.md
 chore(ci): ajouter lint ShellCheck dans GitHub Actions
 refactor(app): extraire la logique DB dans src/db.js

@@ -1,5 +1,8 @@
 #!/bin/bash
 # =============================================================================
+# LEGACY: script conserve pour reference pedagogique (architecture LAN/DMZ complete).
+# Non utilise par le deploiement sandbox actuel (voir deploy.sh + openshift/services/svc-web.yaml).
+# =============================================================================
 # VM1 — Script de configuration iptables (Passerelle / Firewall)
 # Architecture : Internet (NAT) <-> VM1 <-> DMZ (VM2) | LAN (VM3)
 #

@@ -5,7 +5,7 @@
 Architecture retenue et validee:
 
 - Tier 1: VM1 Firewall (KubeVirt)
-- Tier 2: VM2 Web persistante (KubeVirt + DataVolume/PVC, Nginx)
+- Tier 2: VM2 Web (KubeVirt, containerDisk)
 - Tier 2 bis: Pod fallback Web (Deployment OpenShift)
 - Tier 3: Base MySQL en Pod OpenShift (Deployment + PVC)
 
@@ -28,7 +28,6 @@ Pod MySQL + PVC
 ```
 
 Le service web reste disponible meme si la VM2 est arretee par les contraintes du sandbox.
-La VM2 conserve son etat disque entre redemarrages grace au DataVolume `vm2-web-rootdisk`.
 
 ## Structure essentielle du depot
 
@@ -51,6 +50,7 @@ projet-3tiers/
 │   └── RAPPORT_FINAL_PRET_IMPRESSION_PDF.md
 └── scripts/
     ├── vm1-iptables.sh
+    ├── watch-vm1.sh
     └── validate.sh
 ```
 
@@ -82,6 +82,5 @@ Face aux restrictions strictes du sandbox (extinction automatique de VMs contain
 - un Pod fallback leger
 
 Ainsi, lorsque VM2 est evincee, la route publique continue de repondre en HTTP 200 sans interruption utilisateur.
-Quand VM2 redemarre, le disque persistant evite de reperdre la couche systeme configuree.
-
-Note sandbox: selon la fenetre de charge du cluster, l'import DataVolume de VM2 peut rester en `Provisioning` (restriction platforme). La route publique reste operationnelle grace au Pod fallback.
+Note sandbox: VM1 peut s'arreter de facon intermittente (runStrategy Manual). Redemarrage a la demande avec `virtctl start vm1-firewall -n ad-gomis-dev`.
+Pour une surveillance automatique en soutenance: `./scripts/watch-vm1.sh ad-gomis-dev 15`.

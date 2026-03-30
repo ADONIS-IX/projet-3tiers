@@ -1,5 +1,8 @@
 #!/bin/bash
 # =============================================================================
+# LEGACY: script conserve pour reference pedagogique (VM3 MySQL historique).
+# Non utilise par le deploiement sandbox actuel (MySQL en Deployment OpenShift).
+# =============================================================================
 # VM3 — Script d'installation et configuration MySQL
 # Réseau LAN : 192.168.10.10/24
 # Accès autorisé : VM2 (192.168.100.10) uniquement sur MySQL/3306

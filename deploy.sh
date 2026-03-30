@@ -27,7 +27,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 configure_vm_services() {
-  log "Configuration VM2 via cloud-init inline minimal (mode persistant + HA)..."
+  log "Configuration VM2 via cloud-init inline minimal (mode containerDisk + HA)..."
   ok "Aucune configuration SSH requise pour VM2"
 }
 
@@ -47,14 +47,9 @@ check_prerequisites() {
     exit 1
   fi
 
-  # Vérifier la disponibilité des API KubeVirt/CDI via discovery (compatible RBAC sandbox)
+  # Vérifier la disponibilité de l'API KubeVirt (compatible RBAC sandbox)
   if ! oc api-resources --api-group=kubevirt.io -o name 2>/dev/null | grep -q '^virtualmachines\.kubevirt\.io$'; then
     err "OpenShift Virtualization (API kubevirt.io/virtualmachines) n'est pas disponible"
-    exit 1
-  fi
-
-  if ! oc api-resources --api-group=cdi.kubevirt.io -o name 2>/dev/null | grep -q '^datavolumes\.cdi\.kubevirt\.io$'; then
-    err "CDI (API cdi.kubevirt.io/datavolumes) n'est pas disponible"
     exit 1
   fi
 
@@ -126,11 +121,9 @@ deploy() {
   log "Étape 4/6 — Déploiement des VMs Firewall et Web..."
   oc apply -f "$SCRIPT_DIR/openshift/vms/vm1-firewall.yaml"
   if ! oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"; then
-    warn "Migration VM2 vers disque persistant: recréation de vm2-web"
+    warn "Application VM2 en echec: recréation de vm2-web"
     virtctl stop vm2-web -n "$NAMESPACE" || true
     oc delete vm vm2-web -n "$NAMESPACE" --ignore-not-found=true
-    oc delete dv vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
-    oc delete pvc vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
     oc apply -f "$SCRIPT_DIR/openshift/vms/vm2-web.yaml"
   fi
 
@@ -206,10 +199,6 @@ destroy() {
 
   log "Suppression des secrets..."
   oc delete secret db-credentials -n "$NAMESPACE" --ignore-not-found=true
-
-  log "Suppression des ressources persistantes VM2..."
-  oc delete dv vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
-  oc delete pvc vm2-web-rootdisk -n "$NAMESPACE" --ignore-not-found=true
 
   log "Suppression du PVC MySQL..."
   oc delete pvc pvc-mysql-data -n "$NAMESPACE" --ignore-not-found=true

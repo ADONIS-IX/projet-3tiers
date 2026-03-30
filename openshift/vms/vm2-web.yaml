@@ -44,33 +44,8 @@ spec:
               hostname: vm2-web
               user: ubuntu
               no_ssh_fingerprints: true
-              package_update: true
-              packages:
-                - nginx
-              write_files:
-                - path: /etc/nginx/sites-available/tp-3tiers
-                  permissions: "0644"
-                  content: |
-                    server {
-                        listen 8080;
-                        server_name _;
-
-                        location = /health {
-                            default_type application/json;
-                            return 200 '{"status":"ok","service":"vm2-web-persistante"}';
-                        }
-
-                        location = /api/users {
-                            default_type application/json;
-                            return 200 '[]';
-                        }
-
-                        location / {
-                            return 404;
-                        }
-                    }
               runcmd:
-                - ln -sf /etc/nginx/sites-available/tp-3tiers /etc/nginx/sites-enabled/tp-3tiers
-                - rm -f /etc/nginx/sites-enabled/default
-                - nginx -t
-                - systemctl enable --now nginx
+                - mkdir -p /opt/www/api
+                - printf '{"status":"ok","service":"vm2-web-containerdisk"}' > /opt/www/health
+                - printf '[]' > /opt/www/api/users
+                - nohup python3 -m http.server 8080 --directory /opt/www >/var/log/tp3-web.log 2>&1 &
