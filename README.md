@@ -51,18 +51,22 @@ projet-3tiers/
 └── scripts/
     ├── vm1-iptables.sh
     ├── watch-vm1.sh
+    ├── watch-vm2.sh
     └── validate.sh
 ```
 
 ## Deploiement rapide
 
 ```bash
+oc get namespace ad-gomis-dev >/dev/null 2>&1 || oc create namespace ad-gomis-dev
 oc project ad-gomis-dev
 oc apply -k openshift
 
 virtctl start vm1-firewall -n ad-gomis-dev || true
 virtctl start vm2-web -n ad-gomis-dev || true
 ```
+
+Le namespace est gere hors `kustomization` pour eviter les erreurs RBAC de type `cannot patch namespaces` dans les environnements sandbox.
 
 ## Verification
 
@@ -82,5 +86,13 @@ Face aux restrictions strictes du sandbox (extinction automatique de VMs contain
 - un Pod fallback leger
 
 Ainsi, lorsque VM2 est evincee, la route publique continue de repondre en HTTP 200 sans interruption utilisateur.
-Note sandbox: VM1 peut s'arreter de facon intermittente (runStrategy Manual). Redemarrage a la demande avec `virtctl start vm1-firewall -n ad-gomis-dev`.
-Pour une surveillance automatique en soutenance: `./scripts/watch-vm1.sh ad-gomis-dev 15`.
+Note sandbox: VM1 et VM2 peuvent s'arreter de facon intermittente (runStrategy Manual).
+Redemarrage a la demande:
+
+- `virtctl start vm1-firewall -n ad-gomis-dev`
+- `virtctl start vm2-web -n ad-gomis-dev`
+
+Pour une surveillance automatique en soutenance:
+
+- `./scripts/watch-vm1.sh ad-gomis-dev 15`
+- `./scripts/watch-vm2.sh ad-gomis-dev 20`

@@ -162,6 +162,7 @@ deploy() {
   echo "  Prochaine étape — Validation :"
   echo "  virtctl ssh admin@vm1-firewall -n $NAMESPACE"
   echo "  curl -k https://$route_url/health"
+  echo "  ./scripts/watch-vm2.sh $NAMESPACE 20   # maintenir VM2 active en sandbox"
   echo "========================================================"
 }
 

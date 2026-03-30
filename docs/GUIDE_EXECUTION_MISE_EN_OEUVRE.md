@@ -6,13 +6,14 @@ Ce guide fournit une procedure de demonstration complete pour l'architecture val
 - VM2 Web (KubeVirt, mode secours containerDisk)
 - DB MySQL en Pod OpenShift
 
-Objectif: executer, verifier et produire les captures essentielles a inserer dans le rapport academique.
+Objectif: executer la procedure, verifier le resultat et produire les captures essentielles a inserer dans le rapport academique.
 
 ## 1. Pre-requis
 
 - Etre connecte au cluster OpenShift
 - Etre positionne dans le namespace `ad-gomis-dev`
 - Avoir `oc` et `virtctl` disponibles
+- Avoir `kubectl` disponible si vous utilisez `./deploy.sh` en mode deploiement complet
 - Etre dans la racine du projet
 
 Commandes de verification:
@@ -22,9 +23,10 @@ oc whoami
 oc project -q
 command -v oc
 command -v virtctl
+command -v kubectl || echo "kubectl optionnel (requis pour ./deploy.sh complet)"
 ```
 
-## 2. Sequence D'Execution
+## 2. Sequence d'execution
 
 ### Etape 1 - Contexte Et Acces
 
@@ -100,9 +102,11 @@ Resultat attendu:
 
 Important sandbox:
 
-- la route continue de repondre via `web-fallback` meme en cas d'arret/instabilite de vm2-web
+- la route continue de repondre via `web-fallback`, meme en cas d'arret/instabilite de vm2-web
 - vm1-firewall peut s'arreter de facon intermittente (runStrategy Manual), relancer avec `virtctl start vm1-firewall -n ad-gomis-dev`
+- vm2-web peut aussi s'arreter en contexte sandbox, relancer avec `virtctl start vm2-web -n ad-gomis-dev`
 - pour maintenir VM1 active automatiquement pendant la demo: `./scripts/watch-vm1.sh ad-gomis-dev 15`
+- pour maintenir VM2 active automatiquement pendant la demo: `./scripts/watch-vm2.sh ad-gomis-dev 20`
 
 Capture essentielle:
 
@@ -170,7 +174,7 @@ curl -k "https://${ROUTE_URL}/health"
 
 Resultat attendu:
 
-- JSON de statut OK
+- JSON de statut (`ok` ou `OK`) selon la cible active (`vm2-web` ou `web-fallback`)
 
 Capture essentielle:
 
@@ -187,13 +191,14 @@ curl -k "https://${ROUTE_URL}/api/users"
 
 Resultat attendu:
 
-- JSON contenant des utilisateurs ou `[]` si fallback Pod actif
+- en mode sandbox actuel, la reponse attendue est `[]` (VM2 et fallback exposent un endpoint minimal)
+- l'objectif de ce test est la disponibilite HTTP de la route, pas la demonstration CRUD
 
 Capture essentielle:
 
 - ID: CAP-07
 - Nom fichier conseille: `cap-07-api-users.png`
-- Contenu visible: liste utilisateurs
+- Contenu visible: reponse JSON de l'endpoint users (souvent `[]` en sandbox)
 
 ### Etape 8 - Checkup Final Global
 
@@ -212,6 +217,23 @@ Capture essentielle:
 - Nom fichier conseille: `cap-08-checkup-final.png`
 - Contenu visible: etat global de l'architecture
 
+### Etape 9 - Validation Automatique Projet
+
+```bash
+./scripts/validate.sh ad-gomis-dev
+```
+
+Resultat attendu:
+
+- bilan `PASS/WARN/FAIL` coherent avec l'etat du sandbox
+- `GET /health => 200` et `GET /api/users => 200`
+
+Capture essentielle:
+
+- ID: CAP-09
+- Nom fichier conseille: `cap-09-validation-script.png`
+- Contenu visible: resume final PASS/WARN/FAIL
+
 ## 3. Tableau Resume Des Captures
 
 | ID | Capture | Commande principale | Nom fichier conseille |
@@ -224,10 +246,11 @@ Capture essentielle:
 | CAP-06 | Health endpoint | `curl -k https://<route>/health` | `cap-06-health-endpoint.png` |
 | CAP-07 | API users | `curl -k https://<route>/api/users` | `cap-07-api-users.png` |
 | CAP-08 | Checkup final | `./deploy.sh --status` | `cap-08-checkup-final.png` |
+| CAP-09 | Validation automatique | `./scripts/validate.sh ad-gomis-dev` | `cap-09-validation-script.png` |
 
 ## 4. Gabarit Annexe A Copier Dans Le Rapport
 
-Utiliser ce bloc pour coller rapidement les captures dans le rapport final:
+Utiliser ce bloc pour inserer rapidement les captures dans le rapport final:
 
 ### Annexe CAP-01 - Contexte RBAC/Namespace
 
@@ -260,6 +283,10 @@ Utiliser ce bloc pour coller rapidement les captures dans le rapport final:
 ### Annexe CAP-08 - Checkup Final
 
 [INSERER LA CAPTURE CAP-08 ICI]
+
+### Annexe CAP-09 - Validation Automatique
+
+[INSERER LA CAPTURE CAP-09 ICI]
 
 ## 5. Conseils De Capture Pour Une Remise Propre
 

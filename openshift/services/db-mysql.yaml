@@ -44,7 +44,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 20Gi
   storageClassName: gp3
 ---
 apiVersion: apps/v1
@@ -54,6 +54,8 @@ metadata:
   namespace: ad-gomis-dev
   labels:
     app: ad-gomis-dev
+    env: tp
+    managed-by: kustomize
     role: db
     tier: data
 spec:
@@ -61,12 +63,16 @@ spec:
   selector:
     matchLabels:
       app: ad-gomis-dev
+      env: tp
+      managed-by: kustomize
       role: db
       tier: data
   template:
     metadata:
       labels:
         app: ad-gomis-dev
+        env: tp
+        managed-by: kustomize
         role: db
         tier: data
     spec:

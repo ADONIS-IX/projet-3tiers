@@ -3,9 +3,8 @@ kind: Kustomization
 
 namespace: ad-gomis-dev
 
-# Ordre de déploiement : namespace -> secret -> DB Pod -> VMs -> exposition Web
+# Ordre de déploiement (namespace déjà existant) : secret -> DB Pod -> VMs -> exposition Web
 resources:
-  - namespace.yaml
   - secrets/db-credentials.yaml
   - services/db-mysql.yaml
   - vms/vm1-firewall.yaml
