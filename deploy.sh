@@ -143,9 +143,7 @@ deploy() {
 
   # Étape 6 — Service et Route
   log "Étape 6/6 — Exposition du service Web..."
-  # Important: supprimer les anciens services pour éviter les collisions de selectors.
-  oc delete svc web-service-ha -n "$NAMESPACE" --ignore-not-found=true
-  oc delete deploy web-fallback -n "$NAMESPACE" --ignore-not-found=true
+  # Application idempotente des manifests web (évite une coupure inutile delete/recreate).
   oc apply -f "$SCRIPT_DIR/openshift/services/svc-web.yaml"
   local route_url
   route_url=$(oc get route route-web -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "N/A")

@@ -46,71 +46,15 @@ spec:
             - /bin/sh
             - -c
             - |
-              mkdir -p /tmp/www
+              mkdir -p /tmp/www/api
+              printf '{"status":"ok","service":"pod-fallback"}' > /tmp/www/health
+              printf '{"status":"OK","data":{"nom":"ADONIS-IX","identifiant":"ad-gomis","email":"adonis@example.com","role":"Etudiant","projet":"TP Architecture 3-tiers","date":"31 mars 2026"}}' > /tmp/www/api/profile
+              printf '[]' > /tmp/www/api/users
               cat > /tmp/www/index.html <<'HTML'
-              <!doctype html>
-              <html lang="fr">
-              <head>
-                <meta charset="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <title>Interface OpenShift - Mes informations</title>
-                <style>
-                  :root { --bg:#f4efe4; --card:#fffdf8; --line:#d8dfdf; --text:#1f2a2f; --muted:#5f6f77; --primary:#eb5e28; }
-                  * { box-sizing: border-box; }
-                  body { margin:0; font-family: system-ui, -apple-system, sans-serif; color:var(--text); background: radial-gradient(circle at 10% 20%, #fff7df, transparent 35%), var(--bg); }
-                  main { max-width: 900px; margin: 0 auto; padding: 18px; display:grid; gap:12px; }
-                  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
-                  h1 { margin:0; font-size:1.5rem; }
-                  h2 { margin:0 0 8px 0; font-size:1.1rem; }
-                  p { margin:6px 0; color:var(--muted); }
-                  .row { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:10px; }
-                  .kv { border:1px solid var(--line); border-radius:10px; padding:10px; background:#fff; }
-                  .kv strong { display:block; font-size:.78rem; color:var(--muted); text-transform:uppercase; }
-                  button { background:var(--primary); color:#fff; border:none; border-radius:10px; padding:9px 12px; font-weight:700; cursor:pointer; }
-                  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
-                </style>
-              </head>
-              <body>
-                <main>
-                  <section class="card">
-                    <h1>Mes informations</h1>
-                    <p>Interface servie depuis OpenShift (fallback Pod).</p>
-                    <button id="reload">Rafraichir</button>
-                  </section>
-
-                  <section class="card">
-                    <h2>Profil</h2>
-                    <div id="profile" class="row"></div>
-                  </section>
-
-                  <section class="card">
-                    <h2>Sante service</h2>
-                    <div id="health" class="row"></div>
-                  </section>
-                </main>
-
-                <script>
-                  function box(k,v){return `<div class="kv"><strong>${k}</strong><span>${v ?? '-'}</span></div>`;}
-                  async function load() {
-                    const [p, h] = await Promise.all([
-                      fetch('/api/profile').then(r=>r.json()),
-                      fetch('/health').then(r=>r.json())
-                    ]);
-                    const prof = p.data || {};
-                    document.getElementById('profile').innerHTML = [
-                      box('Nom', prof.nom), box('Identifiant', prof.identifiant),
-                      box('Email', prof.email), box('Role', prof.role),
-                      box('Projet', prof.projet), box('Date', prof.date)
-                    ].join('');
-                    document.getElementById('health').innerHTML = [
-                      box('Status', h.status), box('Service', h.service || h.serveur), box('IP', h.ip || '-')
-                    ].join('');
-                  }
-                  document.getElementById('reload').addEventListener('click', load);
-                  load().catch(console.error);
-                </script>
-              </body>
-              </html>
+              <!doctype html><meta charset="utf-8"><title>Page d'accueil</title>
+              <meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#f7f2e7,#e7f2f0);font:15px system-ui;color:#1f2a2f}.c{width:min(860px,92vw);background:#fffc;border:1px solid #d8dfdf;border-radius:16px;padding:16px;box-shadow:0 12px 28px #0001}h1{margin:0}.m{margin:.35rem 0 1rem;color:#5f6f77}.b{background:#eb5e28;color:#fff;border:0;border-radius:9px;padding:8px 12px;font-weight:700}.g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.k{background:#fff;border:1px solid #d8dfdf;border-radius:10px;padding:8px}.k b{display:block;font-size:11px;color:#5f6f77;text-transform:uppercase}@media(max-width:700px){.g{grid-template-columns:1fr}}</style>
+              <body><main class=c><h1>Bienvenue</h1><p class=m>Accueil du service web 3-tiers</p><button id=r class=b>Actualiser</button><h3>Profil</h3><div id=p class=g></div><h3>Sante</h3><div id=h class=g></div></main></body>
+              <script>const J=s=>{try{return JSON.parse(s)}catch{return{raw:s}}},V=o=>{const a=Object.entries(o||{});return a.length?a.map(([k,v])=>`<div class=k><b>${k}</b>${v??'-'}</div>`).join(''):'<div class=k><b>info</b>Aucun attribut</div>'};async function L(){const[ps,hs]=await Promise.all([fetch('/api/profile').then(r=>r.text()),fetch('/health').then(r=>r.text())]);const p=J(ps),h=J(hs);document.getElementById('p').innerHTML=V(p.data||p);document.getElementById('h').innerHTML=V(h)}r.onclick=L;L();</script>
               HTML
 
               cat > /tmp/nginx.conf <<'EOF'
@@ -131,21 +75,6 @@ spec:
                 server {
                   listen 8080;
                   root /tmp/www;
-
-                  location = /health {
-                    default_type application/json;
-                    return 200 '{"status":"ok","service":"pod-fallback"}';
-                  }
-
-                  location = /api/profile {
-                    default_type application/json;
-                    return 200 '{"status":"OK","data":{"nom":"ADONIS-IX","identifiant":"ad-gomis","email":"adonis@example.com","role":"Etudiant","projet":"TP Architecture 3-tiers","date":"31 mars 2026"}}';
-                  }
-
-                  location = /api/users {
-                    default_type application/json;
-                    return 200 '[]';
-                  }
 
                   location / {
                     try_files $uri /index.html;
