@@ -46,6 +46,73 @@ spec:
             - /bin/sh
             - -c
             - |
+              mkdir -p /tmp/www
+              cat > /tmp/www/index.html <<'HTML'
+              <!doctype html>
+              <html lang="fr">
+              <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Interface OpenShift - Mes informations</title>
+                <style>
+                  :root { --bg:#f4efe4; --card:#fffdf8; --line:#d8dfdf; --text:#1f2a2f; --muted:#5f6f77; --primary:#eb5e28; }
+                  * { box-sizing: border-box; }
+                  body { margin:0; font-family: system-ui, -apple-system, sans-serif; color:var(--text); background: radial-gradient(circle at 10% 20%, #fff7df, transparent 35%), var(--bg); }
+                  main { max-width: 900px; margin: 0 auto; padding: 18px; display:grid; gap:12px; }
+                  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+                  h1 { margin:0; font-size:1.5rem; }
+                  h2 { margin:0 0 8px 0; font-size:1.1rem; }
+                  p { margin:6px 0; color:var(--muted); }
+                  .row { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:10px; }
+                  .kv { border:1px solid var(--line); border-radius:10px; padding:10px; background:#fff; }
+                  .kv strong { display:block; font-size:.78rem; color:var(--muted); text-transform:uppercase; }
+                  button { background:var(--primary); color:#fff; border:none; border-radius:10px; padding:9px 12px; font-weight:700; cursor:pointer; }
+                  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+                </style>
+              </head>
+              <body>
+                <main>
+                  <section class="card">
+                    <h1>Mes informations</h1>
+                    <p>Interface servie depuis OpenShift (fallback Pod).</p>
+                    <button id="reload">Rafraichir</button>
+                  </section>
+
+                  <section class="card">
+                    <h2>Profil</h2>
+                    <div id="profile" class="row"></div>
+                  </section>
+
+                  <section class="card">
+                    <h2>Sante service</h2>
+                    <div id="health" class="row"></div>
+                  </section>
+                </main>
+
+                <script>
+                  function box(k,v){return `<div class="kv"><strong>${k}</strong><span>${v ?? '-'}</span></div>`;}
+                  async function load() {
+                    const [p, h] = await Promise.all([
+                      fetch('/api/profile').then(r=>r.json()),
+                      fetch('/health').then(r=>r.json())
+                    ]);
+                    const prof = p.data || {};
+                    document.getElementById('profile').innerHTML = [
+                      box('Nom', prof.nom), box('Identifiant', prof.identifiant),
+                      box('Email', prof.email), box('Role', prof.role),
+                      box('Projet', prof.projet), box('Date', prof.date)
+                    ].join('');
+                    document.getElementById('health').innerHTML = [
+                      box('Status', h.status), box('Service', h.service || h.serveur), box('IP', h.ip || '-')
+                    ].join('');
+                  }
+                  document.getElementById('reload').addEventListener('click', load);
+                  load().catch(console.error);
+                </script>
+              </body>
+              </html>
+              HTML
+
               cat > /tmp/nginx.conf <<'EOF'
               worker_processes auto;
               pid /tmp/nginx.pid;
@@ -63,10 +130,16 @@ spec:
 
                 server {
                   listen 8080;
+                  root /tmp/www;
 
                   location = /health {
                     default_type application/json;
                     return 200 '{"status":"ok","service":"pod-fallback"}';
+                  }
+
+                  location = /api/profile {
+                    default_type application/json;
+                    return 200 '{"status":"OK","data":{"nom":"ADONIS-IX","identifiant":"ad-gomis","email":"adonis@example.com","role":"Etudiant","projet":"TP Architecture 3-tiers","date":"31 mars 2026"}}';
                   }
 
                   location = /api/users {
@@ -75,7 +148,7 @@ spec:
                   }
 
                   location / {
-                    return 404;
+                    try_files $uri /index.html;
                   }
                 }
               }

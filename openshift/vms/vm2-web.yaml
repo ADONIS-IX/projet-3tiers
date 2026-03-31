@@ -47,5 +47,11 @@ spec:
               runcmd:
                 - mkdir -p /opt/www/api
                 - printf '{"status":"ok","service":"vm2-web-containerdisk"}' > /opt/www/health
-                - printf '[]' > /opt/www/api/users
+                - printf '{"status":"OK","data":{"nom":"ADONIS-IX","identifiant":"ad-gomis","email":"adonis@example.com","role":"Etudiant","projet":"TP Architecture 3-tiers","date":"31 mars 2026"}}' > /opt/www/api/profile
+                - |
+                  cat > /opt/www/index.html <<'HTML'
+                  <!doctype html><meta charset="utf-8"><title>Mes informations</title>
+                  <h1>Mes informations (VM2)</h1><button id="r">Rafraichir</button><h2>Profil</h2><pre id="p"></pre><h2>Sante</h2><pre id="h"></pre>
+                  <script>function l(){Promise.all([fetch('/api/profile').then(r=>r.text()),fetch('/health').then(r=>r.text())]).then(([p,h])=>{document.getElementById('p').textContent=p;document.getElementById('h').textContent=h;});}document.getElementById('r').onclick=l;l();</script>
+                  HTML
                 - nohup python3 -m http.server 8080 --directory /opt/www >/var/log/tp3-web.log 2>&1 &
