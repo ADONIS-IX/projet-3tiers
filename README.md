@@ -29,6 +29,12 @@ Pod MySQL + PVC
 
 Le service web reste disponible meme si la VM2 est arretee par les contraintes du sandbox.
 
+### Positionnement securite en Sandbox
+
+L'infrastructure est prete pour une segmentation de type perimetre (NAD et scripts disponibles dans le depot), mais le runtime OpenShift Sandbox multi-tenant limite l'usage de ces mecanismes en execution.
+
+Dans ce contexte, le modele retenu est une approche Zero Trust orientee identite et autorisation (identite des workloads, RBAC, secrets, controles applicatifs), plutot qu'une micro-segmentation fine basee uniquement sur le perimetre reseau.
+
 ## Structure essentielle du depot
 
 ```text

@@ -1,270 +1,273 @@
-# RAPPORT FINAL - PROJET D'ARCHITECTURE 3-TIERS HYBRIDE
+# Rapport de Synthese - Deploiement Architecture 3-Tiers
 
-## Page De Garde
-
-Etablissement: ________________________________
-
-Formation / Module: ___________________________
-
-Intitule du projet: Architecture 3-tiers hybride sur OpenShift
+Version cible: PDF (10 pages max)
 
 Auteur: ADONIS-IX (ad-gomis)
-
-Encadrant / Professeur: _______________________
-
-Date de remise: ____ / ____ / 2026
-
-Version du document: v1.0 (pret impression)
+Date: 30 mars 2026
+Namespace de demonstration: ad-gomis-dev
 
 ---
 
-## Plan Du Rapport
+## 1. Introduction du projet
 
-1. Introduction
-2. Objectifs pedagogiques
-3. Contexte et contraintes d'execution
-4. Architecture finale retenue
-5. Description des composants techniques
-6. Procedure de deploiement
-7. Validation et resultats
-8. Analyse critique
-9. Conclusion academique formelle
-10. Annexes (captures d'ecran)
+Ce document presente une synthese de demonstration du projet 3-tiers hybride sur OpenShift Sandbox.
+
+Le projet vise a prouver qu'une architecture pedagogique avec composants virtualises et conteneurises peut rester operationnelle dans un environnement contraint.
+
+Objectifs de demonstration:
+
+- deployer l'architecture complete (VM1, VM2, Web fallback, MySQL)
+- valider l'exposition web publique via Route OpenShift
+- verifier que le tier donnees reste interne (ClusterIP)
+- fournir des preuves exploitables (captures et logs)
+
+Contexte d'execution:
+
+- sandbox multi-tenant avec restrictions RBAC et admission
+- instabilite possible des VMs KubeVirt en runStrategy Manual
+- besoin de privilegier la disponibilite demonstrable
 
 ---
 
-## 1. Introduction
+## 2. Architecture et technologies
 
-Ce rapport presente la mise en oeuvre d'une architecture 3-tiers sur OpenShift, dans un contexte pedagogique de virtualisation, d'administration systeme et de securisation de services.
-
-La solution finale appliquee, validee par le professeur, adopte une architecture hybride resiliente:
-
-- Tiers securite: VM Firewall (KubeVirt)
-- Tiers presentation/metier: VM Web (KubeVirt, containerDisk)
-- Continuite de service: Pod fallback Web (Deployment OpenShift)
-- Tiers donnees: Pod MySQL natif OpenShift (Deployment + Service + PVC)
-
-Cette orientation permet de conserver les objectifs academiques majeurs tout en restant compatible avec les contraintes reelles de l'environnement sandbox.
-
-## 2. Objectifs Pedagogiques
-
-Les objectifs poursuivis dans ce projet sont les suivants:
-
-- Concevoir une architecture 3-tiers claire et argumentee
-- Deployer des ressources virtualisees et conteneurisees sur OpenShift
-- Mettre en oeuvre la communication applicative Web -> DB
-- Assurer la persistance des donnees avec stockage PVC
-- Exposer le service web de maniere securisee via Route TLS
-- Produire une documentation technique et de validation exploitable
-
-## 3. Contexte Et Contraintes D'Execution
-
-Le deploiement a ete realise dans un namespace sandbox (`ad-gomis-dev`) avec des restrictions de plateforme:
-
-- quota de VMs limite
-- restrictions reseau avancees (NAD/Multus non accessibles en self-service)
-- politiques d'admission KubeVirt specifiques au sandbox
-
-Dans ce contexte, l'adaptation hybride constitue une solution pedagogiquement robuste, techniquement deployable et explicitement acceptee par l'encadrement.
-
-## 4. Architecture Finale Retenue
+### 2.1 Vue d'architecture
 
 ```text
 Internet
-  |
-Route OpenShift (TLS edge)
-  |
-Service web-service-ha
-  |
-VM2 Web (service HTTP minimal) + Pod web-fallback
-  |
-Service mysql-db (ClusterIP)
-  |
-Pod MySQL (Deployment) + PVC
-
-VM1 Firewall reste virtualisee comme composant critique de securite.
+  -> Route OpenShift (route-web)
+  -> Service web-service-ha (role=web)
+  -> VM2 web et/ou pod web-fallback
+  -> Service mysql-db (ClusterIP)
+  -> Pod MySQL + PVC
 ```
 
-Logique de separation des tiers:
+### 2.2 Technologies utilisees
 
-- Tier 1: securite et controle (VM1)
-- Tier 2: presentation/API (VM2)
-- Tier 3: persistance des donnees (MySQL Pod)
+- Plateforme: OpenShift Sandbox
+- Virtualisation: KubeVirt (VM1 firewall, VM2 web)
+- Orchestration workloads: Deployments, Services, Route, PVC
+- Base de donnees: MySQL 8 (Deployment OpenShift)
+- Exposition: Route TLS edge
+- Outils de pilotage: oc, virtctl, deploy.sh, scripts/validate.sh
 
-## 5. Description Des Composants Techniques
+### 2.3 Choix techniques cle
 
-Composants OpenShift/KubeVirt:
+- Service HA web pour absorber les fluctuations de VM2
+- VM2 en mode statique cloud-init pour un demarrage rapide et robuste
+- Tier DB non expose publiquement (Service ClusterIP)
+- Posture Zero Trust orientee identite/autorisation adaptee au sandbox
 
-- `openshift/vms/vm1-firewall.yaml`
-- `openshift/vms/vm2-web.yaml`
-- `openshift/services/db-mysql.yaml`
-- `openshift/services/svc-web.yaml`
-- `openshift/secrets/db-credentials.yaml`
-- `openshift/kustomization.yaml`
+---
 
-Composants applicatifs:
+## 3. Screenshots ou logs de deploiement
 
-- `app/src/db.js`
-- `deploy.sh`
+Cette section est la preuve principale. Utiliser soit des captures ecran, soit les logs texte equivalentes.
 
-Details fonctionnels:
+### 3.1 Preuve A - Contexte cluster
 
-- MySQL initialise via ConfigMap SQL au premier demarrage
-- Donnees persistees via PVC `pvc-mysql-data`
-- Exposition publique uniquement du web via `route-web`
-- Base de donnees non exposee publiquement (service interne ClusterIP)
-
-## 6. Procedure De Deploiement
-
-```bash
-oc project ad-gomis-dev
-oc apply -k openshift
-
-virtctl start vm1-firewall -n ad-gomis-dev
-virtctl start vm2-web -n ad-gomis-dev
-```
-
-Verification de base:
-
-```bash
-oc get vm,vmi,deploy,pod,svc,route,pvc -n ad-gomis-dev
-oc rollout status deploy/mysql-db -n ad-gomis-dev
-```
-
-## 7. Validation Et Resultats
-
-Validation fonctionnelle recommandee:
-
-```bash
-ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
-curl -k "https://${ROUTE_URL}/health"
-curl -k "https://${ROUTE_URL}/api/users"
-```
-
-Resultats attendus:
-
-- API accessible depuis la route publique
-- disponibilite maintenue via VM2 ou fallback Pod
-- base MySQL joignable en interne par le tier web
-- endpoint `/api/users` retourne des donnees ou `[]` en fallback
-
-## 8. Analyse Critique
-
-Points forts:
-
-- approche realiste et deployable en environnement contraint
-- maintien de la logique 3-tiers
-- separation claire entre exposition publique et stockage interne
-- documentation et procedure de validation reproductibles
-
-Points a ameliorer:
-
-- reenabler une segmentation LAN/DMZ stricte en environnement non sandbox
-- ajouter des NetworkPolicies pour filtrage intra-namespace fin
-- ajouter des tests automatiques de non-regression applicative
-
-## 9. Conclusion Academique Formelle
-
-En conclusion, ce projet atteint les objectifs pedagogiques centraux attendus dans le module, en combinant virtualisation et orchestration cloud native.
-
-La solution finale retenue (VM Firewall + VM Web + DB Pod OpenShift) demeure conforme a l'esprit d'une architecture 3-tiers, tout en tenant compte de contraintes techniques reelles imposees par l'environnement de laboratoire.
-
-Le dispositif de deploiement, de validation et de documentation fourni permet une evaluation rigoureuse, reproductible et techniquement argumentee. Cette approche illustre une competence cle en ingenierie systeme: adapter l'architecture cible sans perdre la coherence fonctionnelle ni la qualite des livrables.
-
-## 10. Annexes - Captures D'Ecran
-
-### Annexe A - Contexte Cluster
-
-Commande a capturer:
+Commande:
 
 ```bash
 oc whoami
 oc project -q
 ```
 
-Espace pour capture:
+Capture a inserer:
 
-[COLLER ICI LA CAPTURE A - CONTEXTE CLUSTER]
+[CAP-01 - contexte-rbac-namespace]
 
-### Annexe B - Inventaire des Ressources
+Log texte acceptable:
 
-Commande a capturer:
-
-```bash
-oc get vm,vmi,deploy,pod,svc,route,pvc -n ad-gomis-dev
+```text
+ad-gomis
+ad-gomis-dev
 ```
 
-Espace pour capture:
+### 3.2 Preuve B - Application des manifests
 
-[COLLER ICI LA CAPTURE B - INVENTAIRE RESSOURCES]
+Commande:
 
-### Annexe C - Etat Des VMs
+```bash
+oc apply -k openshift
+```
 
-Commande a capturer:
+Capture a inserer:
+
+[CAP-02 - apply-kustomize]
+
+Log texte acceptable:
+
+```text
+secret/db-credentials configured
+virtualmachine.kubevirt.io/vm1-firewall configured
+virtualmachine.kubevirt.io/vm2-web configured
+service/web-service-ha configured
+route.route.openshift.io/route-web configured
+```
+
+### 3.3 Preuve C - Etat des VMs et VMI
+
+Commande:
 
 ```bash
 oc get vm,vmi -n ad-gomis-dev
 ```
 
-Espace pour capture:
+Capture a inserer:
 
-[COLLER ICI LA CAPTURE C - ETAT VMS]
+[CAP-03 - vm-vmi-running]
 
-### Annexe D - Tier Base De Donnees
+Log texte acceptable:
 
-Commande a capturer:
+```text
+virtualmachine.kubevirt.io/vm1-firewall   Running
+virtualmachine.kubevirt.io/vm2-web        Running
+virtualmachineinstance.kubevirt.io/vm1-firewall   Running
+virtualmachineinstance.kubevirt.io/vm2-web        Running
+```
+
+### 3.4 Preuve D - Tier donnees (DB)
+
+Commandes:
 
 ```bash
+oc rollout status deploy/mysql-db -n ad-gomis-dev
 oc get deploy,pod,svc,pvc -n ad-gomis-dev | grep -E 'mysql-db|pvc-mysql-data'
 ```
 
-Espace pour capture:
+Capture a inserer:
 
-[COLLER ICI LA CAPTURE D - DB POD/PVC/SVC]
+[CAP-04 - db-pod-service-pvc]
 
-### Annexe E - Route Web
+Log texte acceptable:
 
-Commande a capturer:
+```text
+deployment "mysql-db" successfully rolled out
+service/mysql-db   ClusterIP
+persistentvolumeclaim/pvc-mysql-data   Bound
+```
+
+### 3.5 Preuve E - Route web exposee
+
+Commande:
 
 ```bash
 oc get route route-web -n ad-gomis-dev
 ```
 
-Espace pour capture:
+Capture a inserer:
 
-[COLLER ICI LA CAPTURE E - ROUTE WEB]
+[CAP-05 - route-web]
 
-### Annexe F - Healthcheck
+Log texte acceptable:
 
-Commande a capturer:
-
-```bash
-curl -k "https://$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')/health"
+```text
+route-web-ad-gomis-dev.apps.<cluster-domain>
+termination: edge
 ```
 
-Espace pour capture:
+### 3.6 Preuve F - Endpoint health public
 
-[COLLER ICI LA CAPTURE F - HEALTHCHECK]
-
-### Annexe G - Test API /users
-
-Commande a capturer:
+Commande:
 
 ```bash
-curl -k "https://$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')/api/users"
+ROUTE_URL=$(oc get route route-web -n ad-gomis-dev -o jsonpath='{.spec.host}')
+curl -k "https://${ROUTE_URL}/health"
 ```
 
-Espace pour capture:
+Capture a inserer:
 
-[COLLER ICI LA CAPTURE G - API USERS]
+[CAP-06 - health-endpoint]
+
+Log texte acceptable:
+
+```text
+{"status":"ok","service":"pod-fallback"}
+```
+
+ou
+
+```text
+{"status":"ok","service":"vm2-web-containerdisk"}
+```
+
+### 3.7 Preuve G - Endpoint users public
+
+Commande:
+
+```bash
+curl -k "https://${ROUTE_URL}/api/users"
+```
+
+Capture a inserer:
+
+[CAP-07 - api-users]
+
+Log texte acceptable:
+
+```text
+[]
+```
+
+### 3.8 Preuve H - Checkup final global
+
+Commandes:
+
+```bash
+./deploy.sh --status
+oc get vm,vmi,deploy,pod,svc,route,pvc -n ad-gomis-dev
+```
+
+Capture a inserer:
+
+[CAP-08 - checkup-final]
+
+### 3.9 Preuve I - Validation automatique
+
+Commande:
+
+```bash
+./scripts/validate.sh ad-gomis-dev
+```
+
+Capture a inserer:
+
+[CAP-09 - validation-script]
+
+Log texte acceptable:
+
+```text
+Resultat: X PASS / Y WARN / 0 FAIL
+```
 
 ---
 
-## Export PDF (Recommande)
+## 4. Tableau de synthese des preuves
 
-Depuis VS Code:
+| ID | Preuve | Commande principale | Fichier capture conseille |
+| --- | --- | --- | --- |
+| CAP-01 | Contexte cluster | oc whoami && oc project -q | cap-01-contexte-rbac-namespace.png |
+| CAP-02 | Deploiement manifests | oc apply -k openshift | cap-02-apply-kustomize.png |
+| CAP-03 | Etat VM/VMI | oc get vm,vmi -n ad-gomis-dev | cap-03-vm-vmi-running.png |
+| CAP-04 | Etat DB | oc get deploy,pod,svc,pvc ... | cap-04-db-pod-service-pvc.png |
+| CAP-05 | Route web | oc get route route-web -n ad-gomis-dev | cap-05-route-web.png |
+| CAP-06 | Health public | curl -k https://ROUTE_URL/health | cap-06-health-endpoint.png |
+| CAP-07 | API users public | curl -k https://ROUTE_URL/api/users | cap-07-api-users.png |
+| CAP-08 | Checkup global | ./deploy.sh --status | cap-08-checkup-final.png |
+| CAP-09 | Validation script | ./scripts/validate.sh ad-gomis-dev | cap-09-validation-script.png |
 
-1. Ouvrir ce fichier Markdown
-2. Lancer `Markdown: Open Preview to the Side`
-3. Lancer `Markdown PDF: Export (pdf)` si extension installee
-4. Nom du rendu conseille: `RAPPORT_FINAL_AD_GOMIS_2026.pdf`
+---
+
+## 5. Conclusion de synthese
+
+Le deploiement prouve une architecture 3-tiers hybride demonstrable en contexte OpenShift Sandbox.
+
+Points valides par preuves:
+
+- architecture deployee et observable de bout en bout
+- disponibilite web publique maintenue via service HA
+- tier donnees protege et interne (ClusterIP)
+- processus de validation reproductible via script
+
+Cette synthese est volontairement concise pour rester dans une enveloppe PDF inferieure ou egale a 10 pages.
