@@ -17,7 +17,29 @@ jobs:
         run: pip install yamllint
 
       - name: Vérifier les fichiers YAML
-        run: yamllint openshift/
+        run: |
+          set +e
+          yamllint openshift/ | tee yamllint-report.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+        id: lint_yaml
+
+      - name: Résumé lint YAML
+        if: always()
+        run: |
+          {
+            echo "## Résultat lint YAML"
+            if [ -s yamllint-report.txt ]; then
+              echo
+              echo '```text'
+              cat yamllint-report.txt
+              echo '```'
+            else
+              echo
+              echo "Aucune erreur détectée."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   lint-scripts:
     name: Validation Scripts Shell
@@ -26,10 +48,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Installer ShellCheck
-        run: sudo apt-get install -y shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
 
       - name: Vérifier les scripts bash
-        run: shellcheck scripts/*.sh
+        run: |
+          set +e
+          shellcheck -f gcc scripts/*.sh | tee shellcheck-report.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+        id: lint_shell
+
+      - name: Résumé lint Shell
+        if: always()
+        run: |
+          {
+            echo "## Résultat lint Shell"
+            if [ -s shellcheck-report.txt ]; then
+              echo
+              echo '```text'
+              cat shellcheck-report.txt
+              echo '```'
+            else
+              echo
+              echo "Aucune erreur détectée."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   test-node:
     name: Tests Application Node.js
