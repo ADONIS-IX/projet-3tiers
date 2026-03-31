@@ -22,6 +22,7 @@ if [[ ! -f "$SECRET_ENV_PATH" ]]; then
 fi
 
 set -a
+# shellcheck source=/dev/null
 source "$SECRET_ENV_PATH"
 set +a
 
