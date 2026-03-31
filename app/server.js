@@ -6,6 +6,7 @@ const express  = require('express');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
 const cors     = require('cors');
+const path     = require('path');
 
 const db       = require('./src/db');
 const users    = require('./src/routes/users');
@@ -23,13 +24,28 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('combined'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/health', health);
 app.use('/api/users', users);
 
-// Accueil
-app.get('/', (req, res) => {
+app.get('/api/profile', (_req, res) => {
+  res.json({
+    status: 'OK',
+    data: {
+      nom: process.env.PROFILE_NAME || 'ADONIS-IX',
+      identifiant: process.env.PROFILE_USERNAME || 'ad-gomis',
+      email: process.env.PROFILE_EMAIL || 'non-defini@example.com',
+      role: process.env.PROFILE_ROLE || 'Etudiant',
+      projet: process.env.PROFILE_PROJECT || 'TP Architecture 3-tiers',
+      date: process.env.PROFILE_DATE || '31 mars 2026',
+    },
+  });
+});
+
+// Meta API
+app.get('/api', (req, res) => {
   res.json({
     status:      'OK',
     application: 'TP Architecture 3-tiers',
@@ -37,6 +53,7 @@ app.get('/', (req, res) => {
     serveur:     'VM2 — DMZ (192.168.100.10)',
     endpoints: {
       health:    'GET /health',
+      profile:   'GET /api/profile',
       healthDB:  'GET /health/db',
       users:     'GET /api/users',
       userById:  'GET /api/users/:id',
@@ -61,12 +78,9 @@ app.use((err, req, res, _next) => {
 // ── Démarrage ────────────────────────────────────────────────────────────────
 async function start() {
   try {
-    await db.testConnection();
-    console.log('[DB] Connexion MySQL établie avec succès');
-
     app.listen(PORT, HOST, () => {
       console.log(`[SERVER] Démarré sur http://${HOST}:${PORT}`);
-      console.log(`[SERVER] BD cible : ${process.env.DB_HOST}:${process.env.DB_PORT}`);
+      console.log('[SERVER] Demarrage sans test DB initial');
     });
   } catch (err) {
     console.error('[FATAL] Impossible de démarrer :', err.message);

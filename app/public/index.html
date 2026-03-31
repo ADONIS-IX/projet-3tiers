@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TP 3-Tiers | Console Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+    <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
+
+    <header class="hero">
+      <p class="kicker">Architecture 3-tiers</p>
+      <h1>Tableau de bord personnel</h1>
+      <p class="subtitle">
+        Interface non-DB: affichage de ton profil, de la sante du serveur et des meta-informations API.
+      </p>
+      <div class="hero-actions">
+        <button id="refreshAllBtn" class="btn btn-primary">Rafraichir tout</button>
+        <a class="btn btn-ghost" href="/api/profile" target="_blank" rel="noreferrer">Voir profil JSON</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card reveal" style="--delay: 0ms">
+        <div class="card-head">
+          <h2>Mes informations</h2>
+          <button id="loadProfileBtn" class="btn btn-secondary">Charger profil</button>
+        </div>
+        <div id="profileBox" class="status-grid"></div>
+      </section>
+
+      <section class="card reveal" style="--delay: 80ms">
+        <div class="card-head">
+          <h2>Sante plateforme</h2>
+          <button id="checkHealthBtn" class="btn btn-secondary">Verifier</button>
+        </div>
+        <div id="healthBox" class="status-grid"></div>
+      </section>
+
+      <section class="card reveal wide" style="--delay: 160ms">
+        <div class="card-head">
+          <h2>Meta API</h2>
+          <button id="loadApiBtn" class="btn btn-secondary">Recharger API</button>
+        </div>
+        <pre id="apiBox" class="code-block">En attente...</pre>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
